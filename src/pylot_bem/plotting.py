@@ -32,12 +32,12 @@ from pathlib import Path
 
 import numpy as np
 import vedo
+from pylot_db.entities import FloatArray
+from pylot_db.frames import transform_points
 from vtkmodules.vtkCommonDataModel import vtkPolyData
 
 from pylot_bem.palette import APPLICATION_POINT, CALCULATION_MESH, HULL, PROBE, SEA
 from pylot_bem.polydata import to_polydata as _to_polydata
-from pylot_db.entities import FloatArray
-from pylot_db.frames import transform_points
 
 __all__ = [
     "SEA",
@@ -134,7 +134,7 @@ def show(
     actors = [item if isinstance(item, vedo.visual.CommonVisual) else to_vedo(item) for item in items]
 
     plotter = vedo.Plotter(title=title, offscreen=not interactive)
-    # viewup="z" because z is up in every frame this project has (spec 01).
+    # viewup="z" because z is up in every frame this project has (pylot-db's spec 01).
     plotter.show(*actors, axes=axes, viewup="z", azimuth=azimuth, elevation=elevation, interactive=False)
     if screenshot is not None:
         plotter.screenshot(str(screenshot))

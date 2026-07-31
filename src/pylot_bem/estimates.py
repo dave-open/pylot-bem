@@ -11,7 +11,6 @@ the cost of a solver it may not import.
 """
 
 import numpy as np
-
 from pylot_db.entities import FloatArray, IntArray
 
 __all__ = [

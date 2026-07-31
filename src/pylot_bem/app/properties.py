@@ -406,7 +406,7 @@ class SelectionPane(QWidget):
     """Several results at once — the pane that exists to make comparison easy.
 
     Selecting more than one result is how a conflict gets resolved
-    (spec 02 section 3.2), so the multi-selection is a first-class state rather
+    (pylot-db's spec 02 section 3.2), so the multi-selection is a first-class state rather
     than a fallback that shows nothing.
 
     Signals:

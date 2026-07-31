@@ -14,9 +14,8 @@ the user what they picked is not.
 from pathlib import Path
 
 import numpy as np
-from pymeshup import Load
-
 from pylot_db.entities import FloatArray, IntArray
+from pymeshup import Load
 
 __all__ = ["load_mesh_file"]
 

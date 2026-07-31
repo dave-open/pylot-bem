@@ -16,9 +16,9 @@ from itertools import groupby
 import capytaine as cpt
 import numpy as np
 import xarray as xr
+from pylot_db.entities import FloatArray, IntArray, LidMode
 
 from pylot_bem.capytaine_mesh import to_capytaine_mesh
-from pylot_db.entities import FloatArray, IntArray, LidMode
 
 __all__ = [
     "KG_PER_TONNE",
@@ -130,7 +130,7 @@ def build_body(
 ) -> cpt.FloatingBody:
     """Assemble the body Capytaine solves on.
 
-    ``rotation_center`` **is** the application point (spec 01 section 5.2). It
+    ``rotation_center`` **is** the application point (pylot-db's spec 01 section 5.2). It
     does not move the mesh and it does not affect the phase origin -- the
     previous implementation's ``mesh_translation = -POA`` step did both, which
     is the defect this whole design exists to remove.

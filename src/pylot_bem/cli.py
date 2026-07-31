@@ -22,12 +22,12 @@ import sys
 from collections.abc import Sequence
 
 import numpy as np
+from pylot_db.storage import LibraryError
 
 from pylot_bem.api import Pylot
 from pylot_bem.estimates import format_memory, shortest_reliable_period, solved_panels
 from pylot_bem.mesh_pipeline import MeshPipelineError
 from pylot_bem.solver import SolverError, SolveSettings
-from pylot_db.storage import LibraryError
 
 __all__ = ["main"]
 
@@ -73,7 +73,7 @@ def parse_range(text: str, *, what: str) -> list[float]:
 
 def _add_condition(library: Pylot, args: argparse.Namespace) -> None:
     condition = library.create_condition(
-        # Degrees at the boundary, slopes everywhere inside (spec 01 section 7).
+        # Degrees at the boundary, slopes everywhere inside (pylot-db's spec 01 section 7).
         trim=np.tan(np.radians(args.trim)),
         heel=np.tan(np.radians(args.heel)),
         z_origin=args.z_origin,

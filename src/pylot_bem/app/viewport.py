@@ -2,7 +2,7 @@
 
 Everything is drawn in **diffraction space**, which is the only frame where the
 waterplane is ``z = 0`` and a hull's position in it *is* the floating condition
-(spec 01). The base shape is stored vessel-local, so it is placed through
+(pylot-db's spec 01). The base shape is stored vessel-local, so it is placed through
 :meth:`~pylot_bem.api.Pylot.base_shape_at` first; a calculation mesh is already
 in diffraction space and is drawn as it is stored.
 
@@ -27,6 +27,7 @@ import numpy as np
 # draws nothing -- which is indistinguishable from an empty library, and was
 # the state this module shipped in until a test asked what class it had.
 import vtkmodules.vtkRenderingOpenGL2
+from pylot_db.frames import transform_points
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
@@ -44,7 +45,6 @@ from vtkmodules.vtkRenderingCore import (
 
 from pylot_bem.palette import APPLICATION_POINT, BACKFACE, CALCULATION_MESH, HULL, PROBE, SEA
 from pylot_bem.polydata import to_polydata
-from pylot_db.frames import transform_points
 
 __all__ = ["LAYERS", "Viewport"]
 

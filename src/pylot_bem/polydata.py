@@ -28,10 +28,9 @@ another distribution supplies its own build. ``pymeshup`` does.
 """
 
 import numpy as np
+from pylot_db.entities import FloatArray, IntArray
 from vtkmodules.vtkCommonCore import vtkPoints
 from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
-
-from pylot_db.entities import FloatArray, IntArray
 
 __all__ = ["to_polydata", "triangles_to_polydata"]
 

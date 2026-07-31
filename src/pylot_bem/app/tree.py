@@ -13,7 +13,7 @@ the delete cascades legible before they are triggered.
 Two things about it are deliberate and easy to undo by accident:
 
 - **Results are multi-selectable.** Comparing two competing results is how a
-  conflict gets resolved (spec 02 section 3.2), so it is the main loop of the
+  conflict gets resolved (pylot-db's spec 02 section 3.2), so it is the main loop of the
   application rather than a power-user gesture.
 - **The tree is not a filter.** Selecting a mesh does not narrow the Results
   tab (spec 06 section 4). The tree is for picking something to act on; the

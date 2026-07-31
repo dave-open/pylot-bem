@@ -28,6 +28,7 @@ from typing import ClassVar
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from pylot_db.hyddb import DOF_ORDER, KG_TO_MT, N_TO_KN, STORED_RHO
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -57,7 +58,6 @@ from pylot_bem.app.formatting import (
     period_from_omega,
     slope_from_degrees,
 )
-from pylot_db.hyddb import DOF_ORDER, KG_TO_MT, N_TO_KN, STORED_RHO
 
 __all__ = [
     "DatabasesTab",

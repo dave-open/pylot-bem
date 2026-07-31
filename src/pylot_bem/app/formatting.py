@@ -1,7 +1,7 @@
 """Turning stored values into what the interface shows.
 
 Every conversion the application performs is here, because the units it
-displays are deliberately **not** the units it stores (spec 01 section 7,
+displays are deliberately **not** the units it stores (pylot-db's spec 01 section 7,
 spec 09):
 
 ======================  ==================  ====================
@@ -24,7 +24,6 @@ reason -- extends naturally to every derived number stating where it came from.
 """
 
 import numpy as np
-
 from pylot_db.entities import FloatArray
 
 __all__ = [
@@ -48,7 +47,7 @@ __all__ = [
 # Grey enough to recede next to a value, dark enough to read on either theme.
 MUTED = "#888888"
 
-# The three states an assembly key can be in (spec 02 section 3), used wherever
+# The three states an assembly key can be in (pylot-db's spec 02 section 3), used wherever
 # one is shown: the dot beside a result in the tree, the pill in the Databases
 # tab, the severity of a finding. One definition, because a user learns these
 # three colours once and then reads them everywhere.

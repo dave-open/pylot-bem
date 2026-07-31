@@ -21,7 +21,7 @@ import pytest
 
 from pylot_db.storage import Library
 
-EXAMPLES = Path(__file__).parents[3] / "examples"
+EXAMPLES = Path(__file__).parents[1] / "examples"
 
 
 def run_example(name: str) -> None:

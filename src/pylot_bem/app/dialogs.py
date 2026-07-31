@@ -14,6 +14,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+from pylot_db.frames import check_domain, transform
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QListWidgetItem, QMessageBox, QWidget
 
@@ -41,7 +42,6 @@ from pylot_bem.geometry import load_mesh_file
 from pylot_bem.mesh_pipeline import MeshPipelineError, application_point_for, check_full_mesh, submerged_summary
 from pylot_bem.pool import PoolSolve, default_workers
 from pylot_bem.solver import SolveSettings, auto_lid_z
-from pylot_db.frames import check_domain, transform
 
 __all__ = [
     "UNITS",
@@ -123,7 +123,7 @@ class NewLibraryDialog(QDialog):
     """Import a base shape and create a library around it.
 
     The one screen where a base shape is chosen, because it is immutable once
-    any mesh or result exists (spec 02 section 1) and in practice that means
+    any mesh or result exists (pylot-db's spec 02 section 1) and in practice that means
     immediately. So the checks happen here, where the user can still pick a
     different file: the bounds under the chosen unit, and the refusal of a half
     mesh.
@@ -339,7 +339,7 @@ class NewConditionDialog(QDialog):
         """Exactly the arguments :meth:`~pylot_bem.api.Pylot.create_condition` takes."""
         return {
             "z_origin": self.ui.spinZOrigin.value(),
-            # Degrees at the boundary, slopes everywhere inside (spec 01 §7).
+            # Degrees at the boundary, slopes everywhere inside (pylot-db's spec 01 §7).
             "heel": slope_from_degrees(self.ui.spinHeel.value()),
             "trim": slope_from_degrees(self.ui.spinTrim.value()),
             "label": self.ui.editLabel.text().strip(),
@@ -387,7 +387,7 @@ class NewConditionDialog(QDialog):
     def _duplicate_warning(self, values) -> str:
         """Say when this is the condition next door, before it is created.
 
-        Storage refuses a duplicate within 1e-3 (spec 02 section 4). Saying so
+        Storage refuses a duplicate within 1e-3 (pylot-db's spec 02 section 4). Saying so
         here turns a refusal into a choice.
         """
         for existing in self._library.conditions():

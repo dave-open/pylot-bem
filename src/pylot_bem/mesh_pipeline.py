@@ -16,10 +16,9 @@ See ``docs/spec/03_mesh_pipeline.md``.
 from dataclasses import dataclass
 
 import numpy as np
-from pymeshup import Volume
-
 from pylot_db.entities import BaseShape, FloatArray, IntArray
 from pylot_db.frames import decompose, is_xz_symmetric
+from pymeshup import Volume
 
 __all__ = [
     "MeshGeometry",

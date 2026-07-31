@@ -16,7 +16,7 @@ frequencies that came from the others -- and the usual reason two results exist
 is that they were solved on **different meshes**, which is exactly the
 distinction that would be lost.
 
-What this screen does not do is pick the winner. That is the decision spec 02
+What this screen does not do is pick the winner. That is the decision pylot-db's spec 02
 section 3.2 reserves for the user; this exists to inform it, by showing what
 each result would keep, what it would lose, and -- simulated, not promised --
 what the database becomes.
@@ -25,14 +25,14 @@ what the database becomes.
 from dataclasses import replace
 
 import numpy as np
+from pylot_db.assembly import OMEGA_TOLERANCE, coverage_of
+from pylot_db.storage import combination_differences
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QTableWidgetItem, QWidget
 
 from pylot_bem.app.dialogs import wire_button_box
 from pylot_bem.app.formatting import CLEAN, CONFLICT, INCOMPLETE, escape, format_grid, period_from_omega
 from pylot_bem.app.forms.dlg_merge_ui import Ui_DlgMerge
-from pylot_db.assembly import OMEGA_TOLERANCE, coverage_of
-from pylot_db.storage import combination_differences
 
 __all__ = ["MergeDialog"]
 

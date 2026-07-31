@@ -21,6 +21,8 @@ enabled for a selection it makes no sense for.
 """
 
 import numpy as np
+from pylot_db.probes import probes_for_condition
+from pylot_db.storage import LibraryError
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
@@ -48,8 +50,6 @@ from pylot_bem.app.tabs import DatabasesTab, InspectTab, MatchTab, ResultsTab, V
 from pylot_bem.app.tree import LibraryTree
 from pylot_bem.app.viewport import LAYERS, Viewport
 from pylot_bem.mesh_pipeline import MeshPipelineError
-from pylot_db.probes import probes_for_condition
-from pylot_db.storage import LibraryError
 
 __all__ = ["MainWindow"]
 

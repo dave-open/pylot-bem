@@ -30,9 +30,9 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 import xarray as xr
+from pylot_db.entities import FloatArray, IntArray
 
 from pylot_bem.solver import SolveSettings, solve
-from pylot_db.entities import FloatArray, IntArray
 
 __all__ = [
     "PoolSolve",
@@ -157,7 +157,7 @@ class PoolSolve:
 
     Both keep whatever had already come back. Because the unit of work is a
     frequency, that partial output is not ragged -- it is a valid result over a
-    shorter grid, which spec 02 section 3 already assembles from.
+    shorter grid, which pylot-db's spec 02 section 3 already assembles from.
     """
 
     def __init__(

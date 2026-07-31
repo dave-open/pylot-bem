@@ -10,7 +10,6 @@ See ``docs/spec/03_mesh_pipeline.md`` section 4.
 import capytaine as cpt
 import numpy as np
 from capytaine.meshes.symmetric import ReflectionSymmetricMesh
-
 from pylot_db.entities import FloatArray, IntArray
 
 __all__ = ["to_capytaine_mesh"]
