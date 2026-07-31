@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PropLibrary</class>
+ <widget class="QWidget" name="PropLibrary">
+  <property name="windowTitle">
+   <string>Library</string>
+  </property>
+  <layout class="QVBoxLayout" name="root">
+   <item>
+    <widget class="QGroupBox" name="groupIdentity">
+     <property name="title">
+      <string>Identity</string>
+     </property>
+     <layout class="QFormLayout" name="formIdentity">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblVesselNameCaption">
+        <property name="text">
+         <string>Vessel name</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="editVesselName"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblDescriptionCaption">
+        <property name="text">
+         <string>Description</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="editDescription"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblOriginCaption">
+        <property name="text">
+         <string>Origin sits at</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="editOrigin"/>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QLabel" name="lblOriginHint">
+        <property name="text">
+         <string>The only human record of where (0, 0, 0) is. Getting it wrong invalidates every condition below.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QPushButton" name="btnApplyIdentity">
+        <property name="text">
+         <string>Apply</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBaseShape">
+     <property name="title">
+      <string>Base shape — derived</string>
+     </property>
+     <layout class="QFormLayout" name="formBaseShape">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblCountsCaption">
+        <property name="text">
+         <string>Geometry</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="lblCounts">
+        <property name="text">
+         <string>—</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblBoundsCaption">
+        <property name="text">
+         <string>Bounds [m]</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="lblBounds">
+        <property name="text">
+         <string>—</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblSymmetryCaption">
+        <property name="text">
+         <string>XZ-symmetric</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="lblSymmetry">
+        <property name="text">
+         <string>—</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QLabel" name="lblBaseShapeNote">
+        <property name="text">
+         <string>Chosen when the library is created and fixed for its lifetime. Every condition, mesh and result is defined against it, so there is no action here — a different hull is a different library.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupProbes">
+     <property name="title">
+      <string>Surface probes</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutProbes">
+      <item>
+       <widget class="QTableWidget" name="tableProbes">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>110</height>
+         </size>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectRows</enum>
+        </property>
+        <column>
+         <property name="text">
+          <string>x [m]</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>y [m]</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutProbeButtons">
+        <item>
+         <widget class="QPushButton" name="btnProbeAdd">
+          <property name="text">
+           <string>Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnProbeRemove">
+          <property name="text">
+           <string>Remove</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnProbeReset">
+          <property name="text">
+           <string>Reset to corners</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblProbeWarning">
+        <property name="text">
+         <string>Applying an edit recomputes the probe z of every condition. You will be told how many changed before it happens.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnProbeApply">
+        <property name="text">
+         <string>Apply probe edit…</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupHealth">
+     <property name="title">
+      <string>Library health</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutHealth">
+      <item>
+       <widget class="QPushButton" name="btnValidate">
+        <property name="text">
+         <string>Validate library</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblHealth">
+        <property name="text">
+         <string>Not run yet.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="spacerBottom">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

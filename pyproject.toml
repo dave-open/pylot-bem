@@ -1,0 +1,190 @@
+# ============================================================================
+# pylot-bem — write side of the hydrodynamic database
+# ============================================================================
+#
+# Creates libraries, floating conditions, calculation meshes and results;
+# runs Capytaine in-process (ADR-1); owns the CLI and the standalone
+# application (docs/spec/06 Part A).
+#
+# Depends on pylot-db, never the reverse.  Does not depend on DAVE.
+
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm>=8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+# Version from this repository's own git tags.  It used to say root = "../.."
+# because the package lived two levels down in a workspace; standing alone, the
+# default is right and stating it is not.
+
+
+[project]
+name = "pylot-bem"
+dynamic = ["version"]
+authors = [{ name = "Ruben de Bruin / DAVE Lab", email = "ruben@davelab.nl" }]
+description = "Create hydrodynamic databases: meshing, Capytaine solving and assembly."
+readme = "README.md"
+requires-python = ">=3.14"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE*"]
+
+dependencies = [
+    # Its own package now, not a workspace sibling.  See [tool.uv.sources]
+    # below for how a development checkout finds it.
+    "pylot-db",
+    # BEM solver, run in-process — Apache 2.0 since 2.3 (ADR-1)
+    "capytaine>=2.3.1",
+    # mesh transform / cutting / regrid (ADR-2)
+    "pymeshup>=26.3.4",
+    # NOT used directly.  Resolver floor: without it uv backtracks to numba
+    # 0.53.1 chasing the newest numpy, which has no py>=3.12 wheel and fails
+    # to build.  docs/spec/07 §3.1.  It looks removable and is not.
+    "numba>=0.60",
+    # 3D display for the standalone application
+    "vedo",
+    "PySide6-essentials",
+    # The Inspect tab's plot.  Already present as a vedo dependency; declared
+    # here because the application imports it directly, and an undeclared
+    # transitive dependency is one that disappears when the other package
+    # drops it.  QtCharts would have been the alternative and is in
+    # PySide6-addons, which this deliberately is not.
+    "matplotlib",
+]
+
+# For development only.  uv applies tool.uv.sources to the project being worked
+# on and never to consumers, so this does not follow the package to anyone who
+# installs it -- they resolve `pylot-db` normally.  It does assume the two
+# repositories are cloned side by side.
+[tool.uv.sources]
+pylot-db = { path = "../pylot-db", editable = true }
+
+[project.scripts]
+pylot = "pylot_bem.cli:main"
+pylot-app = "pylot_bem.app:main"
+
+# ============================================================================
+# pytest
+# ============================================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Shared test material, importable under --import-mode=importlib.
+pythonpath = ["tests"]
+addopts = [
+    "--no-cov",
+    "--verbose",
+    "--import-mode=importlib",
+    "-m",
+    "not interactive",
+]
+norecursedirs = [".*", "dist", "build", "venv", ".venv"]
+markers = [
+    "interactive: mark tests as interactive (skipped by default)",
+    "gui: mark tests that launch a GUI (skipped by default)",
+]
+
+# ============================================================================
+# ruff
+# ============================================================================
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+extend-exclude = ["docs", "src/pylot_bem/app/forms"]
+
+[tool.ruff.lint]
+# Units and dimensions are written the way a reader expects them --
+# "333.4 x 58.0 m", "9.81 m/s2", "12 - 20 s", "heel != 0".  Every one is
+# deliberate and none is a homoglyph typo, which is what RUF001 is for.
+allowed-confusables = ["×", "·", "–", "…", "≠", "²", "³", "≈", "⚠", "✓", "✗"]
+exclude = ["*test*"]
+select = ["YTT", "S", "B", "A", "C4", "T10", "SIM", "I", "C90", "E", "W", "F",
+          "PGH", "UP", "RUF", "TRY", "Q", "D", "N"]
+ignore = [
+    # pycodestyle
+    "E101", "E402", "E501", "E722", "E731",
+    # pyflakes
+    "F401", "F403", "F405", "F811", "F821", "F841",
+    # bandit
+    "S101", "S102", "S105", "S110", "S307", "S603", "S606",
+    # pydocstyle
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D205", "D415", "D417",
+    # flake8-comprehensions
+    "C403", "C408", "C419",
+    # flake8-simplify
+    "SIM102", "SIM103", "SIM105", "SIM108", "SIM211",
+    # flake8-bugbear
+    "B028",
+    # flake8-builtins
+    "A001", "A002",
+    # mccabe
+    "C901",
+    # tryceratops
+    "TRY002", "TRY003", "TRY004",
+    # pygrep-hooks
+    "PGH003",
+    # pyupgrade
+    "UP040",
+    # pep8-naming
+    "N801", "N802", "N803", "N806", "N811", "N815", "N816", "N999",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["pylot_bem"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+
+# ============================================================================
+# mypy
+# ============================================================================
+[tool.mypy]
+python_version = "3.14"
+exclude = [".*tests.*"]
+show_error_codes = true
+warn_unused_ignores = false
+ignore_missing_imports = true
+follow_imports = "silent"
+no_implicit_optional = true
+warn_return_any = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "*.tests.*"
+ignore_errors = true
+
+# ============================================================================
+# coverage
+# ============================================================================
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECKING:", "@overload"]
+
+# ============================================================================
+# development
+# ============================================================================
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "coverage[toml]>=7.6.1",
+    "pytest-pretty>=1.2.0",
+    "ruff>=0.7.4",
+    "mypy>=1.15.0",
+]

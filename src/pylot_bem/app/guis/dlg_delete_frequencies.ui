@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DlgDeleteFrequencies</class>
+ <widget class="QDialog" name="DlgDeleteFrequencies">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>560</width>
+    <height>480</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Delete frequencies</string>
+  </property>
+  <layout class="QVBoxLayout" name="root">
+   <item>
+    <widget class="QLabel" name="lblHeading">
+     <property name="text">
+      <string>—</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::RichText</enum>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblIntro">
+     <property name="text">
+      <string>Tick the frequencies to remove. Whole frequencies only — removing part of one would leave the degree-of-freedom and direction coverage ragged. A frequency marked ⚠ is contested by another result: removing it here is what resolves that conflict.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QListWidget" name="listFrequencies"/>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="layoutSelect">
+     <item>
+      <widget class="QPushButton" name="btnCheckConflicted">
+       <property name="text">
+        <string>Tick the contested ones</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCheckNone">
+       <property name="text">
+        <string>Tick none</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupPreview">
+     <property name="title">
+      <string>What this does</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutPreview">
+      <item>
+       <widget class="QLabel" name="lblPreview">
+        <property name="text">
+         <string>—</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
