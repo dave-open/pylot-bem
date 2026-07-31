@@ -39,8 +39,8 @@ Everything is **deliberately coarse** so you can change a number and run it agai
 ## Where things are documented
 
 - [`docs/api.md`](../docs/api.md) — the reference: every public name, with its units
-- [`docs/spec/11_api.md`](../docs/spec/11_api.md) — why the API is shaped this way
-- [`docs/spec/01_reference_frames_and_conditions.md`](../docs/spec/01_reference_frames_and_conditions.md) — read this before trusting any number you get out
+- The `pylot` specification, `11_api.md` — why the API is shaped this way
+- The `pylot` specification, `01_reference_frames_and_conditions.md` — read this before trusting any number you get out
 
 ## The three traps
 

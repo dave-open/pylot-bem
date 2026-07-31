@@ -10,7 +10,7 @@ changes that matter:
   *input* face count, which made output resolution depend on input density and
   broke determinism. One regrid call, exactly as configured.
 
-See ``docs/spec/03_mesh_pipeline.md``.
+See the pylot specification, ``03_mesh_pipeline.md``.
 """
 
 from dataclasses import dataclass

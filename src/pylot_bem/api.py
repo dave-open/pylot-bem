@@ -28,7 +28,7 @@ right on its own:
 - the physical settings of a solve and the physical settings recorded against
   its result have to be the same numbers.
 
-See ``docs/spec/11_api.md``.
+See the pylot specification, ``11_api.md``.
 """
 
 from pathlib import Path

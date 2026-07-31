@@ -6,7 +6,7 @@ the Apache 2.0 relicence made possible and which removed the whole
 ``fleetmaster.exe`` layer -- its settings file, path setting, stdout scraping
 and version gate (ADR-1).
 
-See ``docs/spec/04_solver_and_results.md``.
+See the pylot specification, ``04_solver_and_results.md``.
 """
 
 from collections.abc import Callable

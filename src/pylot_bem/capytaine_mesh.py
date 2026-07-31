@@ -4,7 +4,7 @@ Kept apart from the pipeline on purpose: a mesh loaded from a library must be
 solvable without re-running the pipeline that built it. The pipeline produces
 geometry; this turns geometry into a solver object.
 
-See ``docs/spec/03_mesh_pipeline.md`` section 4.
+See the pylot specification, ``03_mesh_pipeline.md`` section 4.
 """
 
 import capytaine as cpt

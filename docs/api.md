@@ -185,7 +185,7 @@ uv run pylot-app                 # or: uv run python -m pylot_bem.app
 uv run pylot-app tanker.pylot    # opening a library at startup
 ```
 
-A window for building and inspecting libraries: a tree of **library → condition → mesh → result**, a 3D view, property panes, and tabs for Results, Databases, Inspect, Match and Validation. See [`spec/06_ui_and_integration.md`](spec/06_ui_and_integration.md) and [`spec/09_ui_options.md`](spec/09_ui_options.md).
+A window for building and inspecting libraries: a tree of **library → condition → mesh → result**, a 3D view, property panes, and tabs for Results, Databases, Inspect, Match and Validation. See the `pylot` specification, `06_ui_and_integration.md` and `09_ui_options.md`.
 
 **It is a client of this API and nothing more.** Every action it performs is one call on `Pylot`; where something was missing — `set_info`, `store_result` — the answer was to put it here, not to reach past it. Anything the window had to work out for itself, every other caller would have had to work out too.
 

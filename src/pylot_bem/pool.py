@@ -18,7 +18,7 @@ frequencies within one.
 A pool of one worker is still a separate process, so parallelism is a
 **setting** rather than a second code path.
 
-See ``docs/spec/06_ui_and_integration.md`` sections 6.2 to 6.5.
+See the pylot specification, ``06_ui_and_integration.md`` sections 6.2 to 6.5.
 """
 
 import os

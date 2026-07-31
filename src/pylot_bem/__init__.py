@@ -22,7 +22,7 @@ here: it pulls in the whole of VTK, and the CLI has no use for that::
 
     from pylot_bem.plotting import show_condition
 
-See ``docs/api.md`` for the reference and ``docs/spec/11_api.md`` for why.
+See ``docs/api.md`` for the reference and the pylot specification's ``11_api.md`` for why.
 """
 
 from pylot_bem.api import Pylot

@@ -2,7 +2,7 @@
 
 That is the whole surface. End users work in the UI; anything more than these
 three is the Python package used directly; batching is running the command
-again. See ``docs/spec/10_cli.md`` for why the scope is a decision rather than
+again. See the pylot specification, ``10_cli.md`` for why the scope is a decision rather than
 a first cut.
 
 Built on ``argparse`` -- three commands do not justify a dependency.

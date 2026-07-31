@@ -4,7 +4,7 @@
 #
 # Creates libraries, floating conditions, calculation meshes and results;
 # runs Capytaine in-process (ADR-1); owns the CLI and the standalone
-# application (docs/spec/06 Part A).
+# application (pylot spec 06 Part A).
 #
 # Depends on pylot-db, never the reverse.  Does not depend on DAVE.
 
@@ -45,7 +45,7 @@ dependencies = [
     "pymeshup>=26.3.4",
     # NOT used directly.  Resolver floor: without it uv backtracks to numba
     # 0.53.1 chasing the newest numpy, which has no py>=3.12 wheel and fails
-    # to build.  docs/spec/07 §3.1.  It looks removable and is not.
+    # to build.  pylot spec 07 §3.1.  It looks removable and is not.
     "numba>=0.60",
     # 3D display for the standalone application
     "vedo",
