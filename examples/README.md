@@ -1,6 +1,6 @@
 # Examples
 
-Four runnable scripts. Start with `01`, which writes the library `02` reads.
+Five runnable scripts. Start with `01`, which writes the library `02` reads.
 
 ```bash
 uv run python examples/01_build_a_library.py
@@ -14,7 +14,7 @@ uv run python examples/01_build_a_library.py
 | [`04_progress_and_cancellation.py`](04_progress_and_cancellation.py) | A progress bar, and stopping a solve from another thread | ~3 s | `output/progress.pylot` |
 | [`05_look_at_it.py`](05_look_at_it.py) | Meshes out, the `Hyddb1` out, and a 3D view | ~1 s | `output/design.png` |
 
-They all use `packages/pylot-bem/tests/assets/tanker.stl` — a real 333 × 58 × 28 m hull. Point `HULL` at your own file to use something else; `SCALE` is there for a model drawn in millimetres.
+They all use `tests/assets/tanker.stl` — a real 333 × 58 × 28 m hull. Point `HULL` at your own file to use something else; `SCALE` is there for a model drawn in millimetres.
 
 Everything is **deliberately coarse** so you can change a number and run it again. Real settings are `pct=2.0, iterations=20` (the defaults) and a frequency grid that covers the periods you care about. Cost is quadratic in the panel count, so `pct` is the knob that matters.
 

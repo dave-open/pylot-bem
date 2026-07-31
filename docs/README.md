@@ -5,6 +5,7 @@ assemble the results. Carries the command line and the standalone application.
 
 | | |
 |---|---|
+| [`manual.md`](manual.md) | The application, screen by screen. Assumes you know Capytaine |
 | [`api.md`](api.md) | The reference. What to call, what comes back, and in which units |
 | [`../examples/`](../examples/) | Runnable scripts, smallest first |
 

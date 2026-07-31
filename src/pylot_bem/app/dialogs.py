@@ -611,6 +611,16 @@ class SolveDialog(QDialog):
 
         self._refresh()
 
+        # This screen is most of a page of word-wrapped explanation, and a
+        # wrapped label reports a minimum height that its layout cannot know
+        # until it has a width to wrap against. The dialog therefore opens
+        # shorter than the sum of what is in it, and the group boxes draw on
+        # top of each other -- the estimates group over the physical
+        # conditions, which is exactly the pair a user cross-reads. Taking the
+        # layout's own preferred height fixes it, and the width from the
+        # ``.ui`` is kept because the two-column arrangement is deliberate.
+        self.resize(self.width(), self.sizeHint().height())
+
     # -- settings ----------------------------------------------------------
 
     def periods(self) -> list[float]:

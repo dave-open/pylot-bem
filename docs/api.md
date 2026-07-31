@@ -61,7 +61,7 @@ The valid domain for a condition is `trim² + heel² ≤ 1` — a unit disc. Out
 
 ### Density is applied on delivery, not on solving
 
-Added mass, damping and the excitation force are **exactly** linear in water density — measured, bitwise, to 0 ULP ([`test_rho_scaling.py`](../packages/pylot-bem/tests/test_rho_scaling.py)). Density enters linear potential flow only through the linearised Bernoulli pressure `p = −ρ ∂φ/∂t`; the potential problem itself contains no ρ.
+Added mass, damping and the excitation force are **exactly** linear in water density — measured, bitwise, to 0 ULP ([`test_rho_scaling.py`](../tests/test_rho_scaling.py)). Density enters linear potential flow only through the linearised Bernoulli pressure `p = −ρ ∂φ/∂t`; the potential problem itself contains no ρ.
 
 So every solve runs at **ρ = 1 t/m³** and results are stored **per unit density**:
 
