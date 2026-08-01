@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QStackedWidget,
     QTabWidget,
@@ -96,6 +97,11 @@ class MainWindow(QMainWindow):
 
         self.library: Pylot | None = None
 
+        # Kept because a dock has a close button and nothing else offers one a
+        # way back: closing Properties or Data hid it for the life of the
+        # process. View -> Panels holds their toggles.
+        self.docks: dict[str, QDockWidget] = {}
+
         self.viewport = Viewport(self)
         self.setCentralWidget(self.viewport)
 
@@ -153,19 +159,44 @@ class MainWindow(QMainWindow):
             dock.setMinimumWidth(size)
         else:
             dock.setMinimumHeight(size)
+        self.docks[title] = dock
         return dock
 
     # -- menus -------------------------------------------------------------
 
     def _build_menus(self) -> None:
-        file_menu = self.menuBar().addMenu("&File")
+        """Build the menu bar.
+
+        Every menu is kept on ``self.menus``. ``addMenu(title)`` hands back a
+        ``QMenu`` that Python owns, so one referenced only by a local in this
+        method is destroyed the moment the method returns -- the entries stay
+        drawn on the bar and still work, because Qt keeps them, but the
+        ``QMenu`` a caller gets back from ``action.menu()`` is a wrapper around
+        a deleted object. That is invisible in use and makes the menu bar
+        untestable, which is how a submenu could have gone missing without
+        anything noticing.
+        """
+        self.menus: dict[str, QMenu] = {}
+
+        file_menu = self.menus["File"] = self.menuBar().addMenu("&File")
         file_menu.addAction("&New library…", self.new_library)
         file_menu.addAction("&Open library…", self.open_library)
         self.close_action = file_menu.addAction("&Close library", self.close_library)
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close)
 
-        view_menu = self.menuBar().addMenu("&View")
+        view_menu = self.menus["View"] = self.menuBar().addMenu("&View")
+
+        # Qt gives every dock a close button and no way back. Its own
+        # toggleViewAction is the way back: already checkable, already named
+        # after the dock, and already tracking whether the dock is visible --
+        # so it cannot fall out of step with what is on screen the way a
+        # hand-written checkable action would.
+        panels = self.menus["Panels"] = view_menu.addMenu("Panels")
+        for dock in self.docks.values():
+            panels.addAction(dock.toggleViewAction())
+        view_menu.addSeparator()
+
         self.layer_actions: dict[str, QAction] = {}
         for name in LAYERS:
             action = QAction(LAYER_LABELS[name], self, checkable=True, checked=True)
@@ -180,7 +211,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Reset camera", self.viewport.reset_camera)
         view_menu.addSeparator()
 
-        theme_menu = view_menu.addMenu("Theme")
+        theme_menu = self.menus["Theme"] = view_menu.addMenu("Theme")
         self.theme_group = QActionGroup(self)
         for label in ("System", "Fusion light", "Fusion dark"):
             action = QAction(label, self, checkable=True, checked=label == "System")
@@ -188,7 +219,7 @@ class MainWindow(QMainWindow):
             self.theme_group.addAction(action)
             theme_menu.addAction(action)
 
-        help_menu = self.menuBar().addMenu("&Help")
+        help_menu = self.menus["Help"] = self.menuBar().addMenu("&Help")
         help_menu.addAction("Conventions — units and frames", self.show_conventions)
         help_menu.addAction("About pylot", self.show_about)
 

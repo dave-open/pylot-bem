@@ -1962,3 +1962,46 @@ def test_the_context_menu_never_hands_merge_a_mesh(window):
     before = {r.id: sorted(r.omegas) for r in window.library.results()}
     window.merge_results(window.tree.selected_ids())
     assert {r.id: sorted(r.omegas) for r in window.library.results()} == before
+
+
+def test_every_dock_can_be_reopened_after_it_is_closed(window):
+    """A dock's close button used to be one-way.
+
+    Qt puts a close button on every dock and offers nothing that reopens one,
+    so closing Properties or Data hid it for the life of the process — the
+    panes kept working, they were simply unreachable. Asserted per dock, and
+    the hidden state is asserted first so that a reopen which never had
+    anything to undo cannot pass.
+    """
+    assert set(window.docks) == {"Library", "Properties", "Data"}
+
+    for title, dock in window.docks.items():
+        action = dock.toggleViewAction()
+        assert action.text() == title
+
+        dock.close()
+        assert not dock.isVisible(), f"{title} did not close, so reopening it proves nothing"
+        assert not action.isChecked(), "the menu entry disagrees with what is on screen"
+
+        action.trigger()
+        assert dock.isVisible(), f"{title} could not be reopened"
+        assert action.isChecked()
+
+
+def test_the_view_menu_offers_a_panel_toggle_for_each_dock(window):
+    """The action has to be reachable, not merely to exist.
+
+    ``toggleViewAction`` works whether or not anyone put it in a menu, so a
+    test that only triggers it would pass with the menu missing entirely —
+    which is the bug this is about.
+    """
+    view = window.menus["View"]
+    assert [action.text() for action in window.menuBar().actions()] == ["&File", "&View", "&Help"]
+    assert view.menuAction() in window.menuBar().actions(), "the View menu is not on the menu bar"
+
+    panels = window.menus["Panels"]
+    assert panels.menuAction() in view.actions(), "Panels is not under View"
+
+    assert [action.text() for action in panels.actions()] == list(window.docks)
+    for action in panels.actions():
+        assert action.isCheckable()

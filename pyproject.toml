@@ -48,7 +48,7 @@ dependencies = [
     # to build.  pylot spec 07 §3.1.  It looks removable and is not.
     "numba>=0.60",
     # 3D display for the standalone application
-    "vedo",
+    "vtk",
     "PySide6-essentials",
     # The Inspect tab's plot.  Already present as a vedo dependency; declared
     # here because the application imports it directly, and an undeclared

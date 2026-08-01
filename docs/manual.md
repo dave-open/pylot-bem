@@ -85,6 +85,10 @@ coordinates. Select anything below and the view switches to diffraction space.
 point — and resets the camera. Drag with the left button to orbit, the middle to
 pan, the wheel to zoom.
 
+All three panels can be closed, dragged to another edge, or floated. **`View →
+Panels` brings a closed one back**, which is the only way back: a dock's own
+close button is one-way.
+
 `Help → Conventions — units and frames` is the same list as the end of this document, one keystroke
 from wherever you are.
 
