@@ -89,6 +89,13 @@ All three panels can be closed, dragged to another edge, or floated. **`View →
 Panels` brings a closed one back**, which is the only way back: a dock's own
 close button is one-way.
 
+`File → Recent Files` lists the last ten libraries opened or created, most
+recent first — click one to reopen it. Reopening moves it back to the top
+rather than adding a duplicate. A file that has since been moved or deleted
+drops off the list the moment opening it is tried and fails; a library this
+build merely refuses to open — the wrong schema version, say — stays, since
+it is still the file you are looking for.
+
 `Help → Conventions — units and frames` is the same list as the end of this document, one keystroke
 from wherever you are.
 

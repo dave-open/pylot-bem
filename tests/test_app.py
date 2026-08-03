@@ -23,7 +23,9 @@ import time
 import numpy as np
 import pytest
 from hull import BOX_FACES, BOX_VERTICES
-from PySide6.QtCore import Qt
+from pylot_db.probes import probes_for_condition
+from pylot_db.storage import Library, LibraryError
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDialogButtonBox, QMessageBox
 
 from pylot_bem.api import Pylot
@@ -31,8 +33,6 @@ from pylot_bem.app.dialogs import LID_AUTO, LID_BELOW, CreateMeshDialog, NewCond
 from pylot_bem.app.formatting import degrees_from_slope, period_from_omega, slope_from_degrees
 from pylot_bem.app.window import MainWindow
 from pylot_bem.solver import SolveSettings
-from pylot_db.probes import probes_for_condition
-from pylot_db.storage import Library, LibraryError
 
 COARSE = {"pct": 20.0, "iterations": 5}
 DIRECTIONS = (0.0, 90.0)
@@ -90,8 +90,21 @@ def path(library_path, tmp_path):
 
 
 @pytest.fixture
-def window(qapp, path):
-    main = MainWindow()
+def isolated_settings(tmp_path):
+    """A real ``QSettings``, backed by a private file rather than the
+    developer's actual registry.
+
+    Every ``MainWindow`` built in this module is given one explicitly.
+    Recent Files persists through ``QSettings``, and a ``MainWindow`` built
+    without an override reaches for the real ``dave-open/pylot`` key -- which
+    a test run must never read from or write to.
+    """
+    return QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+
+
+@pytest.fixture
+def window(qapp, path, isolated_settings):
+    main = MainWindow(settings=isolated_settings)
     main.show()
     main.open_path(path)
     yield main
@@ -128,7 +141,7 @@ def tree_rows(window):
 # --------------------------------------------------------------------------
 
 
-def test_the_application_starts_with_dave_not_installed(qapp, path):
+def test_the_application_starts_with_dave_not_installed(qapp, path, isolated_settings):
     """Item 6. The boundary spec 06 section 1 says a dedicated app makes real.
 
     Asserted the only way that means anything: DAVE genuinely is not importable
@@ -141,7 +154,7 @@ def test_the_application_starts_with_dave_not_installed(qapp, path):
         "The application must not need it; run the suite without it."
     )
 
-    main = MainWindow()
+    main = MainWindow(settings=isolated_settings)
     main.show()
     main.open_path(path)
     assert main.library is not None
@@ -486,7 +499,7 @@ def test_validation_findings_render(window):
     )
 
 
-def test_a_corrupted_library_is_displayed_not_crashed_on(qapp, path):
+def test_a_corrupted_library_is_displayed_not_crashed_on(qapp, path, isolated_settings):
     """Item 3, second half.
 
     The base shape blob is replaced with rubbish, which is about as broken as a
@@ -501,7 +514,7 @@ def test_a_corrupted_library_is_displayed_not_crashed_on(qapp, path):
     connection.commit()
     connection.close()
 
-    main = MainWindow()
+    main = MainWindow(settings=isolated_settings)
     main.show()
     main.open_path(path)
 
@@ -513,7 +526,7 @@ def test_a_corrupted_library_is_displayed_not_crashed_on(qapp, path):
     main.close()
 
 
-def test_validation_that_itself_fails_is_reported_not_raised(qapp, path):
+def test_validation_that_itself_fails_is_reported_not_raised(qapp, path, isolated_settings):
     import sqlite3
 
     connection = sqlite3.connect(path)
@@ -521,7 +534,7 @@ def test_validation_that_itself_fails_is_reported_not_raised(qapp, path):
     connection.commit()
     connection.close()
 
-    main = MainWindow()
+    main = MainWindow(settings=isolated_settings)
     main.open_path(path)
     findings = main.validation_tab.run()
 
@@ -1135,22 +1148,22 @@ def test_the_library_pane_offers_no_way_to_replace_the_base_shape(window):
 # --------------------------------------------------------------------------
 
 
-def test_the_window_starts_with_nothing_open_and_says_so(qapp):
-    main = MainWindow()
+def test_the_window_starts_with_nothing_open_and_says_so(qapp, isolated_settings):
+    main = MainWindow(settings=isolated_settings)
     assert main.library is None
     assert not main.tree.isEnabled()
     assert "No library open" in main.statusBar().currentMessage()
     main.close()
 
 
-def test_opening_something_that_is_not_a_library_is_reported(qapp, tmp_path, monkeypatch):
+def test_opening_something_that_is_not_a_library_is_reported(qapp, tmp_path, monkeypatch, isolated_settings):
     seen = []
     monkeypatch.setattr(MainWindow, "_problem", lambda self, title, exc: seen.append((title, str(exc))))
 
     rubbish = tmp_path / "notalibrary.pylot"
     rubbish.write_bytes(b"this is not a database")
 
-    main = MainWindow()
+    main = MainWindow(settings=isolated_settings)
     main.open_path(rubbish)
 
     assert seen, "opening a non-library said nothing"
@@ -2005,3 +2018,146 @@ def test_the_view_menu_offers_a_panel_toggle_for_each_dock(window):
     assert [action.text() for action in panels.actions()] == list(window.docks)
     for action in panels.actions():
         assert action.isCheckable()
+
+
+# --------------------------------------------------------------------------
+# Recent files
+# --------------------------------------------------------------------------
+
+
+def test_opening_a_library_adds_it_to_recent_files(window, path):
+    """The ``window`` fixture already opened ``path`` once."""
+    assert window._recent_files() == [str(path)]
+
+    actions = window.recent_menu.actions()
+    assert actions[0].text() == str(path)
+    assert actions[0].isEnabled()
+
+
+def test_recent_files_move_to_the_front_when_reopened(qapp, library_path, tmp_path, isolated_settings):
+    first = tmp_path / "first.pylot"
+    second = tmp_path / "second.pylot"
+    shutil.copy(library_path, first)
+    shutil.copy(library_path, second)
+
+    main = MainWindow(settings=isolated_settings)
+    main.open_path(first)
+    main.open_path(second)
+    assert main._recent_files() == [str(second), str(first)]
+
+    main.open_path(first)
+    assert main._recent_files() == [str(first), str(second)], "reopening moves it to the front, not a duplicate"
+    main.close()
+
+
+def test_recent_files_are_capped(qapp, isolated_settings):
+    """Plain bookkeeping, fed strings directly rather than real libraries --
+    none of ``MAX_RECENT_FILES`` plus a few need to exist on disk for what
+    this checks: that the list does not grow without bound.
+    """
+    main = MainWindow(settings=isolated_settings)
+    for i in range(main.MAX_RECENT_FILES + 3):
+        main._remember_recent_file(f"library-{i}.pylot")
+
+    recent = main._recent_files()
+    assert len(recent) == main.MAX_RECENT_FILES
+    assert recent[0] == f"library-{main.MAX_RECENT_FILES + 2}.pylot", "most recent first"
+    assert "library-0.pylot" not in recent, "the oldest three should have fallen off"
+    main.close()
+
+
+def test_a_missing_recent_file_is_forgotten_when_opening_it_fails(window, path, monkeypatch):
+    """``_problem`` is stubbed the same way ``test_opening_something_that_is_
+    not_a_library_is_reported`` does it, above -- the real one shows a modal
+    ``QMessageBox`` and there is nobody offscreen to click it.
+    """
+    monkeypatch.setattr(MainWindow, "_problem", lambda self, title, exc: None)
+    assert window._recent_files() == [str(path)]
+
+    window.close_library()  # SQLite holds the file open; Windows refuses to delete it otherwise
+    path.unlink()
+    window.open_path(path)
+
+    assert window._recent_files() == [], "a moved or deleted file cannot be reopened from this menu ever again"
+    placeholder = window.recent_menu.actions()[0]
+    assert placeholder.text() == "No recent files"
+    assert not placeholder.isEnabled()
+
+
+def test_a_library_that_fails_to_open_for_another_reason_stays_in_recent_files(window, path, monkeypatch):
+    """Only a genuinely missing file is dropped -- see ``open_path``'s own
+    reasoning. A library this schema version refuses is still the user's
+    file and still worth being able to find again.
+
+    Not asserted through ``window.library``: a failed ``open_path`` leaves it
+    exactly as it was -- here, still the fixture's own open library, since a
+    refusal never calls ``_adopt`` -- so that alone would not distinguish a
+    genuine refusal from ``Pylot.open`` having silently ignored the mutation
+    below. ``_problem`` is spied on instead, the same way the CLI-adjacent
+    tests already do, to prove a refusal actually happened.
+    """
+    seen = []
+    monkeypatch.setattr(MainWindow, "_problem", lambda self, title, exc: seen.append(str(exc)))
+
+    import sqlite3
+
+    connection = sqlite3.connect(path)
+    connection.execute("PRAGMA user_version = 999")
+    connection.commit()
+    connection.close()
+
+    window.open_path(path)
+
+    assert seen, "the fixture needs a genuine refusal, not a successful open"
+    assert window._recent_files() == [str(path)], "the file still exists; it should not have been forgotten"
+
+
+def test_a_recent_file_action_reopens_it(window, path, library_path, tmp_path):
+    """The point of the whole feature: the menu entry itself reopens the
+    library, not merely records that it was opened once.
+    """
+    other = tmp_path / "other.pylot"
+    shutil.copy(library_path, other)
+    window.open_path(other)
+    assert window.library.path == other
+    assert window._recent_files() == [str(other), str(path)]
+
+    action = next(action for action in window.recent_menu.actions() if action.text() == str(path))
+    action.trigger()
+
+    assert window.library.path == path
+    assert window._recent_files() == [str(path), str(other)], "reopening moved it back to the front"
+
+
+def test_clear_recent_files(window, path):
+    assert window._recent_files() == [str(path)]
+
+    clear = next(action for action in window.recent_menu.actions() if action.text() == "Clear recent files")
+    clear.trigger()
+
+    assert window._recent_files() == []
+    placeholder = window.recent_menu.actions()[0]
+    assert placeholder.text() == "No recent files"
+
+
+def test_recent_files_menu_starts_with_no_clear_action_when_empty(qapp, isolated_settings):
+    main = MainWindow(settings=isolated_settings)
+    assert [action.text() for action in main.recent_menu.actions()] == ["No recent files"]
+    main.close()
+
+
+def test_recent_files_persist_across_windows_through_the_real_settings_backend(qapp, path, tmp_path):
+    """Not just a Python list on the instance -- proof it survives the window
+    that wrote it being gone, by giving a second, independent ``MainWindow``
+    the same on-disk settings file rather than sharing any Python object.
+    """
+    settings_path = str(tmp_path / "shared-settings.ini")
+
+    first = MainWindow(settings=QSettings(settings_path, QSettings.Format.IniFormat))
+    first.open_path(path)
+    first.close()
+
+    second = MainWindow(settings=QSettings(settings_path, QSettings.Format.IniFormat))
+    assert second._recent_files() == [str(path)]
+    assert second.recent_menu.actions()[0].text() == str(path)
+    second.close()

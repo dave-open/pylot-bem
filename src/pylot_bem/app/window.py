@@ -20,10 +20,12 @@ context menu and on the property pane -- which is what stops a button being
 enabled for a selection it makes no sense for.
 """
 
+from pathlib import Path
+
 import numpy as np
 from pylot_db.probes import probes_for_condition
 from pylot_db.storage import LibraryError
-from PySide6.QtCore import QLocale, Qt
+from PySide6.QtCore import QLocale, QSettings, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
     QDialog,
@@ -90,13 +92,24 @@ class MainWindow(QMainWindow):
     than showing an empty tree that looks like a library with nothing in it.
     """
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    #: File → Recent Files, most recent first. Beyond this many, the oldest
+    #: drops off -- unbounded growth would make the menu itself the thing that
+    #: needs scrolling to find a recent file in.
+    MAX_RECENT_FILES = 10
+
+    def __init__(self, parent: QWidget | None = None, *, settings: QSettings | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("pylot")
         # All numeric controls use US locale (decimal dot) regardless of system
         # locale. Children inherit this, so it applies to spinboxes everywhere.
         self.setLocale(QLocale.c())
         self.resize(1500, 950)
+
+        # Recent Files is stored here, not on self. A caller may substitute an
+        # isolated QSettings -- the test suite does, backed by a private file
+        # -- so opening libraries in a test run never touches a developer's
+        # real registry entries for this application.
+        self._settings = settings if settings is not None else QSettings("dave-open", "pylot")
 
         self.library: Pylot | None = None
 
@@ -184,6 +197,8 @@ class MainWindow(QMainWindow):
         file_menu = self.menus["File"] = self.menuBar().addMenu("&File")
         file_menu.addAction("&New library…", self.new_library)
         file_menu.addAction("&Open library…", self.open_library)
+        self.recent_menu = self.menus["Recent Files"] = file_menu.addMenu("Recent Files")
+        self._rebuild_recent_files_menu()
         self.close_action = file_menu.addAction("&Close library", self.close_library)
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close)
@@ -292,6 +307,14 @@ class MainWindow(QMainWindow):
             library = Pylot.open(path)
         except (LibraryError, OSError) as exc:
             self._problem("Could not open the library", exc)
+            # A moved or deleted file left permanently in Recent Files is a
+            # menu entry that can never work again. A library that opened
+            # fine last time but is inconsistent now, or that this schema
+            # version refuses, is a different problem -- still the user's
+            # file, still worth being able to get back to -- so only a
+            # genuinely missing path is dropped.
+            if not Path(path).exists():
+                self._forget_recent_file(path)
             return
         self._adopt(library)
 
@@ -313,8 +336,58 @@ class MainWindow(QMainWindow):
         self.library = library
         self._set_enabled(True)
         self.setWindowTitle(f"pylot — {library.path}")
+        self._remember_recent_file(library.path)
         self.refresh()
         self.tree.select_ids(["library"])
+
+    # -- recent files --------------------------------------------------------
+
+    def _recent_files(self) -> list[str]:
+        stored = self._settings.value("recentFiles", [])
+        # QSettings' ini backend collapses a one-element list back to a bare
+        # string on read -- there is no way to tell "one path" from "one
+        # character of a path" apart afterwards except by knowing this.
+        if isinstance(stored, str):
+            stored = [stored] if stored else []
+        return [str(path) for path in stored]
+
+    def _remember_recent_file(self, path) -> None:
+        path = str(path)
+        paths = [p for p in self._recent_files() if p != path]
+        paths.insert(0, path)
+        del paths[self.MAX_RECENT_FILES :]
+        self._settings.setValue("recentFiles", paths)
+        self._rebuild_recent_files_menu()
+
+    def _forget_recent_file(self, path) -> None:
+        path = str(path)
+        paths = [p for p in self._recent_files() if p != path]
+        self._settings.setValue("recentFiles", paths)
+        self._rebuild_recent_files_menu()
+
+    def _clear_recent_files(self) -> None:
+        self._settings.setValue("recentFiles", [])
+        self._rebuild_recent_files_menu()
+
+    def _rebuild_recent_files_menu(self) -> None:
+        """Redraw Recent Files from what :class:`QSettings` actually holds.
+
+        Rebuilt wholesale rather than patched incrementally, for the same
+        reason :meth:`refresh` rebuilds the tree wholesale: the underlying
+        list changes from three different places -- opening a file, a missing
+        one dropping out, Clear -- and a menu kept correct through all three
+        by hand would be three places to get right instead of one.
+        """
+        self.recent_menu.clear()
+        recent = self._recent_files()
+        if not recent:
+            placeholder = self.recent_menu.addAction("No recent files")
+            placeholder.setEnabled(False)
+            return
+        for path in recent:
+            self.recent_menu.addAction(path, lambda checked=False, p=path: self.open_path(p))
+        self.recent_menu.addSeparator()
+        self.recent_menu.addAction("Clear recent files", self._clear_recent_files)
 
     def _set_enabled(self, on: bool) -> None:
         self.tabs.setEnabled(on)
