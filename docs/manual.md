@@ -152,6 +152,11 @@ API and the CLI all use slopes. The user interface is the only place degrees
 appear, and it never shows a slope as a secondary readout — one number, one unit,
 at each boundary.
 
+**Both are a positive rotation about their own axis**, by the right-hand rule,
+in a frame that is right-handed with z up and x forward — so +y points to port.
+Positive **heel** is about +x and puts **starboard down**; positive **trim** is
+about +y and puts the **bow down**.
+
 The derived panel updates as you type:
 
 - **Application point** — the centre of the submerged bounds, vessel-local. This
@@ -393,6 +398,7 @@ Also under `Help → Conventions`.
 | **Lengths** | Metres, everywhere. The only conversion is at base-shape import |
 | **`z_origin`** | Not the draft. Height of the vessel origin above the waterplane |
 | **Heel and trim** | Degrees in this interface, slopes in storage and every API |
+| **Sign of heel and trim** | A positive rotation about the axis. Positive heel puts **starboard down**, positive trim puts the **bow down** |
 | **Frequency** | Periods in seconds in this interface, omega in storage |
 | **Wave direction** | Direction of travel — where the wave is going |
 | **Density** | t/m³. Solves run at 1.0; density is applied on delivery, never stored |

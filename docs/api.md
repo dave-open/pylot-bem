@@ -50,6 +50,7 @@ Getting one of these wrong produces plausible output, which is why they are stat
 | **Length** | metres, everywhere | The only conversion is `scale` at mesh import |
 | **`z_origin`** | metres, **negative** when floating | Height of the vessel origin above the waterplane. **Not the naval draft** — they differ by wherever the origin sits, and there is no `draft` argument anywhere |
 | **`heel`, `trim`** | **slopes**, `tan(radians(deg))` | Degrees appear only in the CLI and the UI. `heel=5` is a slope of 5, which is outside the valid domain and raises |
+| **sign of `heel`, `trim`** | a **positive rotation about the axis**, right-hand rule | Positive `heel` (about **+x**) puts **starboard down**; positive `trim` (about **+y**) puts the **bow down**. The frame is right-handed with z up and x forward, so **+y is port** |
 | **Frequency** | `omega` [rad/s] | Periods in seconds are a UI convention: `omega = 2*pi/T` |
 | **Wave direction** | degrees, **direction of travel** | Where the wave is going. Conversion from Capytaine is `×180/π`, no offset |
 | **Density** | **t/m³** (1.025) | **Not a solve input.** Every solve runs at 1 t/m³; results are stored per unit density and scaled on delivery. Converted to SI at the Capytaine boundary |

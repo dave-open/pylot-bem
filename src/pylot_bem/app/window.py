@@ -73,6 +73,9 @@ wherever the origin was put on the hull — which is what
 <i>origin sits at</i> records.</p>
 <p><b>Heel and trim are shown in degrees</b> and stored as slopes. Slopes are
 never shown here, not even as a secondary readout.</p>
+<p><b>Positive heel puts starboard down; positive trim puts the bow down.</b>
+Both are a positive rotation about their own axis by the right-hand rule. The
+frame is right-handed with z up and x forward, so +y points to port.</p>
 <p><b>Frequencies are entered as periods in seconds</b> and stored as omega.
 Ascending period is descending omega, so a grid solves in the reverse of the
 order it is typed.</p>
