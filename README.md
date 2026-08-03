@@ -1,3 +1,25 @@
+# Pylot
+
+Pylot is a helper application for Capytaine and, in the future, other BEM solvers.
+
+It helps to develop and maintain a library of hydrodynamic data for a single vessel spanning multiple drafts, grids, heel and trim.
+
+The whole idea is a follows:
+
+1. define a base-shape for a vessel.
+2. create calculation meshes for different "floating conditions" by cutting the base-shape at the water-surface and meshing
+3. run capytaine to obtain hydrodynamic data
+4. store in a sqlite database
+
+then, on the consumer side:
+
+1. load the database
+2. get the best matching floating condition (using surface probes)
+3. convert into a mafredo hyddb1 for further use
+
+to limit the python environment for the consumer side, the pylot package is split into pylot-db and pylot-bem.
+
+
 # pylot-bem
 
 Write side of the hydrodynamic database: meshing, in-process Capytaine solving,
