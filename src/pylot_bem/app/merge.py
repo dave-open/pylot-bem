@@ -27,6 +27,7 @@ from dataclasses import replace
 import numpy as np
 from pylot_db.assembly import OMEGA_TOLERANCE, coverage_of
 from pylot_db.storage import combination_differences
+from PySide6.QtCore import QLocale
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QTableWidgetItem, QWidget
 
@@ -58,6 +59,7 @@ class MergeDialog(QDialog):
 
     def __init__(self, library, results, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setLocale(QLocale.c())
         self.ui = Ui_DlgMerge()
         self.ui.setupUi(self)
         wire_button_box(self)

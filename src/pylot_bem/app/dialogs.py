@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 from pylot_db.frames import check_domain, transform
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QListWidgetItem, QMessageBox, QWidget
 
 from pylot_bem.app.formatting import (
@@ -131,6 +131,7 @@ class NewLibraryDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setLocale(QLocale.c())
         self.ui = Ui_DlgNewLibrary()
         self.ui.setupUi(self)
         wire_button_box(self)
@@ -277,6 +278,7 @@ class CreateMeshDialog(QDialog):
 
     def __init__(self, library, condition, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setLocale(QLocale.c())
         self.ui = Ui_DlgCreateMesh()
         self.ui.setupUi(self)
         wire_button_box(self)
@@ -325,6 +327,7 @@ class NewConditionDialog(QDialog):
 
     def __init__(self, library, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setLocale(QLocale.c())
         self.ui = Ui_DlgNewCondition()
         self.ui.setupUi(self)
         wire_button_box(self)
@@ -423,6 +426,7 @@ class DeleteFrequenciesDialog(QDialog):
 
     def __init__(self, library, result, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setLocale(QLocale.c())
         self.ui = Ui_DlgDeleteFrequencies()
         self.ui.setupUi(self)
         wire_button_box(self)
@@ -559,6 +563,7 @@ class SolveDialog(QDialog):
 
     def __init__(self, library, mesh, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setLocale(QLocale.c())
         self.ui = Ui_DlgSolve()
         self.ui.setupUi(self)
 

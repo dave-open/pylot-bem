@@ -23,7 +23,7 @@ enabled for a selection it makes no sense for.
 import numpy as np
 from pylot_db.probes import probes_for_condition
 from pylot_db.storage import LibraryError
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QLocale, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
     QDialog,
@@ -93,6 +93,9 @@ class MainWindow(QMainWindow):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("pylot")
+        # All numeric controls use US locale (decimal dot) regardless of system
+        # locale. Children inherit this, so it applies to spinboxes everywhere.
+        self.setLocale(QLocale.c())
         self.resize(1500, 950)
 
         self.library: Pylot | None = None
