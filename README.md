@@ -19,6 +19,9 @@ then, on the consumer side:
 
 to limit the python environment for the consumer side, the pylot package is split into pylot-db and pylot-bem.
 
+## run
+
+`uvx --from pylot-bem pylot-app`
 
 # pylot-bem
 
