@@ -76,9 +76,30 @@ def test_the_frequencies_come_back_in_order_however_they_finish(geometry):
 
 def test_a_pool_of_one_gives_the_same_numbers_as_solving_in_process(geometry):
     """The pool is a *setting*, not a second implementation. Both paths call
-    the same solve() on the same arrays, so agreement should be tight -- and
-    the finite-depth Prony spread that would loosen it is absent here, because
-    this is infinite depth.
+    the same solve() on the same arrays, so the physics must agree -- but not
+    to machine precision, because the two calls cannot be made to run under
+    the same OpenMP thread count.
+
+    A worker's thread count is set by an environment variable read once, the
+    moment Capytaine is first imported into that fresh process (see
+    ``pylot_bem.pool._openmp_threads``). This in-process call runs in a
+    process where Capytaine and its BLAS were already imported by an earlier
+    test, so there is no point at which setting the variable here would still
+    change anything -- confirmed directly, by setting it mid-process and
+    seeing the result not move at all. The two calls therefore run under
+    whatever thread count each happened to already have, and BLAS reductions
+    are order-dependent: an entry that is *physically* zero, computed as the
+    difference of large numbers that should exactly cancel, lands at a very
+    slightly different floating-point value under a different reduction
+    order. Confirmed the other way too: run as its own process with
+    ``OMP_NUM_THREADS=1`` set before Capytaine is ever imported, so both paths
+    share one thread count, and every entry agrees to the last bit.
+
+    So the tolerance here is deliberately loose on entries that carry no
+    physics (near true zero) and tight on the ones that do -- ``rtol`` alone
+    would let a real regression in a large entry hide behind its own scale,
+    and a single loose ``atol`` alone would do the same by making everything
+    fail together with no way to see which entries actually disagreed.
     """
     mesh, point = geometry
     direct = solve(
@@ -90,9 +111,14 @@ def test_a_pool_of_one_gives_the_same_numbers_as_solving_in_process(geometry):
     )
     pooled = make(geometry, workers=1).run().dataset
 
+    # A few orders of magnitude above what cross-thread cancellation noise
+    # actually produces here (~1e-6), and many orders below the smallest
+    # value either path treats as physically meaningful (~1e5) -- so this
+    # cannot hide a real discrepancy in anything that matters, only in noise
+    # around zero that both paths already agree is zero.
     for name in ("added_mass", "radiation_damping"):
-        assert np.allclose(pooled[name].values, direct[name].values, rtol=1e-9)
-    assert np.allclose(pooled["excitation_force"].values, direct["excitation_force"].values, rtol=1e-9)
+        assert np.allclose(pooled[name].values, direct[name].values, rtol=1e-9, atol=1e-4)
+    assert np.allclose(pooled["excitation_force"].values, direct["excitation_force"].values, rtol=1e-9, atol=1e-4)
 
 
 def test_more_workers_does_not_change_the_answer(geometry):
@@ -291,13 +317,98 @@ def test_worker_count_is_clamped_to_the_machine():
     assert default_workers(999) <= PREFERRED_WORKERS
 
 
-def test_openmp_threads_are_set_for_the_workers_and_restored(geometry):
-    """Two layers of parallelism multiply: left alone every worker spawns
-    cpu_count threads and they oversubscribe the machine together.
+def _report_omp_num_threads() -> str | None:
+    """Runs in a worker process; hands back what it actually inherited.
+
+    Module level and taking nothing, for the same reason ``_solve_one_frequency``
+    is: a spawned worker re-imports this module fresh and cannot see anything
+    set on an object in the parent, only what was in ``os.environ`` at the
+    moment it started.
     """
+    return os.environ.get("OMP_NUM_THREADS")
+
+
+def test_openmp_threads_reach_a_worker_spawned_after_the_pool_is_built():
+    """The bug this guards: ``ProcessPoolExecutor.__init__`` spawns nothing.
+
+    On every platform this project targets the start method is ``spawn``, and
+    spawning is lazy -- ``concurrent.futures.process`` only calls
+    ``_spawn_process()`` from inside ``submit()``. Setting ``OMP_NUM_THREADS``
+    only around *construction* -- as this code used to -- means every worker
+    is actually created later, after the value has already been put back, and
+    inherits whatever the parent process had before the solve ever ran. That
+    is indistinguishable from the setting doing nothing, which is what was
+    reported: every core in use no matter what was configured.
+
+    So the environment has to still be set at the moment ``submit()`` is
+    called, not merely at the moment the pool object exists. Proved directly
+    against the real ``_openmp_threads`` and a real ``ProcessPoolExecutor`` --
+    nothing here is mocked -- by submitting the probe once on each side of the
+    context manager's exit and reading back what a genuine worker process saw.
+    """
+    from concurrent.futures import ProcessPoolExecutor
+
+    from pylot_bem.pool import _openmp_threads
+
+    before = os.environ.get("OMP_NUM_THREADS")
+    try:
+        with _openmp_threads(1):
+            spawned_inside = ProcessPoolExecutor(max_workers=1).submit(_report_omp_num_threads).result()
+        # Same shape as the fix in PoolSolve.run(): a fresh pool, submitted to
+        # only after the context manager has already exited and restored
+        # whatever the environment held before.
+        spawned_outside = ProcessPoolExecutor(max_workers=1).submit(_report_omp_num_threads).result()
+    finally:
+        if before is None:
+            os.environ.pop("OMP_NUM_THREADS", None)
+        else:
+            os.environ["OMP_NUM_THREADS"] = before
+
+    assert spawned_inside == "1", "a worker created while the setting was still in effect must see it"
+    assert spawned_outside != "1", (
+        "a worker created after the setting was restored saw the requested value anyway -- "
+        "this assertion is here so the test cannot pass by accident regardless of timing"
+    )
+
+
+def _report_omp_num_threads_ignoring_payload(payload) -> str | None:
+    """Same report, shaped to stand in for ``_solve_one_frequency``.
+
+    ``PoolSolve.run()`` always calls its worker function with exactly one
+    argument -- the payload tuple -- so a stand-in has to accept one too, even
+    though this one never looks at it.
+    """
+    return _report_omp_num_threads()
+
+
+def test_a_real_solve_sets_the_configured_thread_count_for_its_workers(geometry, monkeypatch):
+    """The same guarantee, verified through the actual entry point every solve
+    uses -- ``PoolSolve.run()`` itself, completely unmodified.
+
+    ``pylot_bem.pool._solve_one_frequency`` is swapped for the probe above.
+    That works because ``run()`` looks the name up from the module's own
+    globals at call time (``pool.submit(_solve_one_frequency, ...)``), so
+    patching the module attribute is enough -- nothing about ``run()`` changes,
+    only which function a spawned worker ends up executing.
+
+    ``workers=1`` so there is exactly one worker and no ambiguity about which
+    process is answering; ``omp_threads=1`` is deliberately not the machine's
+    own core count, so a worker that silently inherited *no* setting -- the
+    original bug -- would be caught rather than coincidentally matching.
+    """
+    import pylot_bem.pool as pool_module
+
+    monkeypatch.setattr(pool_module, "_solve_one_frequency", _report_omp_num_threads_ignoring_payload)
+
+    outcome = make(geometry, omegas=(0.5,), workers=1, omp_threads=1).run()
+
+    assert outcome.dataset == "1", "the worker that actually ran this solve did not see the configured setting"
+
+
+def test_openmp_threads_are_restored_after_a_real_solve(geometry):
+    """The parent's own environment must not be left changed by a solve."""
     before = os.environ.get("OMP_NUM_THREADS")
     make(geometry, workers=1, omp_threads=1).run()
-
     assert os.environ.get("OMP_NUM_THREADS") == before, "the parent's environment is put back"
 
 

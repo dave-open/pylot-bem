@@ -293,21 +293,26 @@ class PoolSolve:
             return snapshot()
 
         with _openmp_threads(self._omp_threads):
-            # The environment is set *around pool creation* on purpose. Each
-            # worker is a fresh spawn that inherits this environment and reads
-            # OMP_NUM_THREADS when it imports Capytaine -- an initializer would
-            # run after that import and be too late.
+            # The environment has to stay set through the *first submit*, not
+            # just through construction. ProcessPoolExecutor.__init__ spawns no
+            # processes at all here -- the only start method available on
+            # Windows is 'spawn', and 'spawn' is lazy: concurrent.futures.process
+            # only calls _spawn_process() from _adjust_process_count(), which
+            # only submit() calls. A worker created after this block exited
+            # would inherit the *restored* value, not the requested one, which
+            # is exactly how every worker used to see the whole machine
+            # regardless of what was configured here.
             pool = ProcessPoolExecutor(max_workers=self._workers)
 
-        with self._lock:
-            if self._killed:  # killed before we got started
-                pool.shutdown(wait=False, cancel_futures=True)
-                return snapshot(stopped=True)
-            self._pool = pool
+            with self._lock:
+                if self._killed:  # killed before we got started
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    return snapshot(stopped=True)
+                self._pool = pool
 
-        futures: dict[Future, float] = {
-            pool.submit(_solve_one_frequency, self._payload(omega)): omega for omega in self._omegas
-        }
+            futures: dict[Future, float] = {
+                pool.submit(_solve_one_frequency, self._payload(omega)): omega for omega in self._omegas
+            }
         with self._lock:
             self._futures = list(futures)
             if self._stopping:
@@ -405,6 +410,9 @@ class _openmp_threads:
     There are two layers of parallelism and they multiply: processes here,
     OpenMP threads inside the Fortran. Left alone, every worker spawns
     ``cpu_count`` threads and they fight each other (spec 06 section 6.5).
+
+    Must stay entered until every worker has actually been spawned, not just
+    until the pool object exists -- see the comment at the call site.
 
     The parent's own value is restored, because a solve should not change the
     environment of the application that ran it.
