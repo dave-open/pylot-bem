@@ -27,7 +27,7 @@ print(d.validate() or "clean")
 d.close()
 ```
 
-Reading one back is [`pylot-db`](https://github.com/DAVE-Lab/pylot-db), which
+Reading one back is [`pylot-db`](https://github.com/dave-open/pylot-db), which
 this package depends on and which needs no solver.
 
 ## The application
