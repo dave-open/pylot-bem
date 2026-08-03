@@ -1,5 +1,0 @@
-b = Load(r"C:\Nextcloud\Lab\developments\DEV012 - dave-dynamics hydrodynamic db\boxboat\barge_60_20_5.stl")
-hull = b.move(x=-30,z=-2.439)
-submerged = hull.cut_at_waterline()
-one_sided = submerged.cut_at_xz()
-mesh = one_sided.regrid(pct=2)
