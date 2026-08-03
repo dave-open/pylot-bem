@@ -153,8 +153,11 @@ class Pylot(Library):
             z_origin: Height of the vessel origin above the waterplane [m],
                 **negative** for a normally floating vessel. This is not the
                 naval draft -- the two differ by wherever the origin sits.
-            heel: Heel **slope**, not degrees. ``tan(radians(deg))``.
-            trim: Trim **slope**, not degrees.
+            heel: Heel **slope**, not degrees -- ``sin(radians(deg))``, and
+                positive puts starboard down. Use
+                :func:`pylot_bem.angles.slope_from_degrees` rather than
+                converting at the call site.
+            trim: Trim **slope**, not degrees. Positive puts the bow down.
             label: Human display only.
             condition_id: Explicit id; generated when omitted.
 

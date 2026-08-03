@@ -26,6 +26,12 @@ reason -- extends naturally to every derived number stating where it came from.
 import numpy as np
 from pylot_db.entities import FloatArray
 
+# Re-exported rather than defined here. The CLI converts degrees at its own
+# boundary and must not import the application package to do it, so the pair
+# lives in :mod:`pylot_bem.angles`; every caller in this package goes on
+# importing it from here, alongside the other display conversions.
+from pylot_bem.angles import degrees_from_slope, slope_from_degrees
+
 __all__ = [
     "CLEAN",
     "CONFLICT",
@@ -58,20 +64,6 @@ MUTED = "#888888"
 CLEAN = "#23705a"
 INCOMPLETE = "#9a6b12"
 CONFLICT = "#b93425"
-
-
-def degrees_from_slope(slope: float) -> float:
-    """A stored heel or trim slope, in degrees.
-
-    The interface never shows a slope -- not even as a secondary readout
-    (spec 09 section M).
-    """
-    return float(np.degrees(np.arctan(slope)))
-
-
-def slope_from_degrees(angle: float) -> float:
-    """Degrees as typed by a user, as the slope that gets stored."""
-    return float(np.tan(np.radians(angle)))
 
 
 def period_from_omega(omega: float) -> float:
