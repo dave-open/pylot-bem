@@ -7,7 +7,7 @@ It helps to develop and maintain a library of hydrodynamic data for a single ves
 The whole idea is a follows:
 
 1. define a base-shape for a vessel.
-2. create calculation meshes for different "floating conditions" by cutting the base-shape at the water-surface and meshing
+2. create calculation meshes for different "floating conditions" by cutting the base-shape at the water-surface and meshing (automatic)
 3. run capytaine to obtain hydrodynamic data
 4. store in a sqlite database
 
