@@ -4,6 +4,9 @@ Pylot is a helper application for Capytaine and, in the future, other BEM solver
 
 It helps to develop and maintain a library of hydrodynamic data for a single vessel spanning multiple drafts, grids, heel and trim.
 
+<img width="1495" height="1034" alt="image" src="https://github.com/user-attachments/assets/6f56d665-19b9-451d-b867-19f838c6c27b" />
+
+
 The whole idea is a follows:
 
 1. define a base-shape for a vessel.
