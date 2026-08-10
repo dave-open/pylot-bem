@@ -43,6 +43,16 @@ diffraction space, property panes, and tabs for Results, Databases, Inspect,
 Match and Validation. [`docs/manual.md`](docs/manual.md) walks through it screen
 by screen and assumes you already know Capytaine.
 
+### Standalone executable
+
+```bash
+uv sync --group build
+uv run pyinstaller packaging/pylot-app.spec --noconfirm
+```
+
+Produces `dist/pylot/pylot.exe` — no Python install required on the target
+machine. Zip the `dist/pylot/` folder to distribute it.
+
 ## What is where
 
 | | |
