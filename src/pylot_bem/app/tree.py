@@ -64,6 +64,9 @@ class LibraryTree(QTreeWidget):
             is ``"library"``, ``"condition"``, ``"mesh"``, ``"result"``,
             ``"results"`` for several at once, or ``""`` for none.
         newConditionRequested: From the library row.
+        batchRequested: ``[condition_id, ...]`` -- the conditions selected,
+            empty from the library row. A batch acts on the whole library, so
+            the selection is an *offer* to narrow it, not the subject.
         createMeshRequested: ``condition_id``.
         solveRequested: ``mesh_id``.
         inspectRequested: ``[result_id, ...]``.
@@ -75,6 +78,7 @@ class LibraryTree(QTreeWidget):
 
     selectionSummary = Signal(str, list)
     newConditionRequested = Signal()
+    batchRequested = Signal(list)
     createMeshRequested = Signal(str)
     solveRequested = Signal(str)
     inspectRequested = Signal(list)
@@ -234,22 +238,42 @@ class LibraryTree(QTreeWidget):
         node = item.data(0, _KIND_ROLE)
         if not node:
             return
-        kind, node_id = node
+        self.menu_for(*node).exec(self.viewport().mapToGlobal(position))
 
+    def menu_for(self, kind: str, node_id: str) -> QMenu:
+        """The context menu for one row, built but not shown.
+
+        Separated from :meth:`_show_menu` for the reason the delete preview is
+        separated from the label it fills: ``exec`` on a menu enters a modal
+        event loop, so a test that went through the right-click would hang
+        rather than assert. What is worth asserting is which actions a row
+        offers, and that is decided here.
+        """
         # Each node's own kind, not the clicked one's. Written as
         # `if kind == "result"` this was a constant: ctrl-clicking a mesh and a
         # result then right-clicking the result handed Merge and Remove a mesh
         # id, which they look up as a result and fail on.
         selected = [i for node_kind, i in self.selected_nodes() if node_kind == "result"]
+        conditions = [i for node_kind, i in self.selected_nodes() if node_kind == "condition"]
         menu = QMenu(self)
 
         if kind == "library":
             menu.addAction("New condition…", self.newConditionRequested.emit)
+            menu.addAction("Batch…", lambda: self.batchRequested.emit([]))
             menu.addSeparator()
             menu.addAction("Validate library", self.validateRequested.emit)
         elif kind == "condition":
             menu.addAction("Create mesh…", lambda: self.createMeshRequested.emit(node_id))
             menu.addAction("New condition…", self.newConditionRequested.emit)
+            # Every condition selected, not the clicked one, for the same
+            # reason Merge takes the selection: choosing which conditions to
+            # fill in is done by picking them out of the tree, and a batch that
+            # only ever saw one of them would make that gesture pointless.
+            targets = conditions if node_id in conditions else [node_id]
+            menu.addAction(
+                f"Batch on {len(targets)} conditions…" if len(targets) > 1 else "Batch…",
+                lambda: self.batchRequested.emit(targets),
+            )
             menu.addSeparator()
             menu.addAction("Remove condition…", lambda: self.removeRequested.emit(kind, node_id))
         elif kind == "mesh":
@@ -269,7 +293,7 @@ class LibraryTree(QTreeWidget):
                 lambda: [self.removeRequested.emit("result", target) for target in targets],
             )
 
-        menu.exec(self.viewport().mapToGlobal(position))
+        return menu
 
 
 def mesh_label(mesh) -> list[str]:

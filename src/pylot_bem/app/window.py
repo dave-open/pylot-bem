@@ -247,6 +247,7 @@ class MainWindow(QMainWindow):
     def _connect(self) -> None:
         self.tree.selectionSummary.connect(self._selection_changed)
         self.tree.newConditionRequested.connect(self.new_condition)
+        self.tree.batchRequested.connect(self.run_batch)
         self.tree.createMeshRequested.connect(self.create_mesh)
         self.tree.solveRequested.connect(self.solve_mesh)
         self.tree.inspectRequested.connect(self.inspect)
@@ -594,6 +595,34 @@ class MainWindow(QMainWindow):
         dialog.resultStored.connect(lambda result_id: self.refresh(keep=[result_id]))
         dialog.exec()
         self.refresh()
+
+    def run_batch(self, condition_ids: list[str] | None = None) -> None:
+        """Open the batch screen: a night of conditions, meshes and solves.
+
+        Imported here rather than at the top for the same reason
+        :class:`~pylot_bem.app.merge.MergeDialog` is -- it is one screen out of
+        several and there is no reason for opening a library to pay for it.
+
+        The refresh is deferred to the end. A batch writes through **its own**
+        connection to the same file (see
+        :class:`~pylot_bem.app.batch.BatchThread`), so this window's view is
+        simply out of date while it runs, and rebuilding a tree of seven
+        hundred conditions after each of fourteen hundred steps would spend the
+        night redrawing.
+        """
+        from pylot_bem.app.batch import BatchDialog, summarise
+
+        if self.library is None:
+            return
+        dialog = BatchDialog(self.library, condition_ids or [], self)
+        # Once when the run ends, not per step, so a dialog left open after a
+        # batch does not sit in front of a window describing the library as it
+        # was last night.
+        dialog.libraryChanged.connect(lambda: self.refresh(keep=[]))
+        dialog.exec()
+        self.refresh(keep=[])
+        if dialog.outcome is not None:
+            self.statusBar().showMessage(summarise(dialog.outcome))
 
     def inspect(self, result_ids: list[str]) -> None:
         if not result_ids:

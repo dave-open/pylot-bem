@@ -1,6 +1,6 @@
 # Examples
 
-Five runnable scripts. Start with `01`, which writes the library `02` reads.
+Six runnable scripts. Start with `01`, which writes the library `02` reads.
 
 ```bash
 uv run python examples/01_build_a_library.py
@@ -13,6 +13,7 @@ uv run python examples/01_build_a_library.py
 | [`03_conflicts_and_cleanup.py`](03_conflicts_and_cleanup.py) | Two results that disagree, and how you resolve it | ~2 s | `output/conflict.pylot` |
 | [`04_progress_and_cancellation.py`](04_progress_and_cancellation.py) | A progress bar, and stopping a solve from another thread | ~3 s | `output/progress.pylot` |
 | [`05_look_at_it.py`](05_look_at_it.py) | Meshes out, the `Hyddb1` out, and a 3D view | ~1 s | `output/design.png` |
+| [`06_batch_overnight.py`](06_batch_overnight.py) | A grid of conditions, meshed and solved unattended. One step fails on purpose, and it runs the job twice to show it resumes | ~8 s | `output/batch.pylot` |
 
 They all use `tests/assets/tanker.stl` — a real 333 × 58 × 28 m hull. Point `HULL` at your own file to use something else; `SCALE` is there for a model drawn in millimetres.
 
@@ -33,6 +34,8 @@ Everything is **deliberately coarse** so you can change a number and run it agai
 | Change the yaw or position in `02`'s last section | Nothing at all. Matching depends on `z_origin`, `heel` and `trim` and nothing else — exactly, not approximately |
 | `HEEL = 1.5, TRIM = 1.5` in `02` | Refused: outside the unit disc. Three slopes can be checked; a 4×4 had no wrong value |
 | Delete `run-fine` instead of trimming `run-coarse` in `03` | The other resolution. Nothing picks between them for you |
+| Widen `Z_ORIGINS` in `06` to `value_range(-18.0, -5.0, 0.5)` | 27 drafts instead of 3, and the counts printed before Start say what that costs before any of it is spent |
+| Add a third line to `06`'s `BANDS` | A third mesh per condition, with its own slice of the frequency grid. Run it again and only the new band is built — the other two are already there |
 | `show_condition(..., mesh=False)` in `05` | Just the hull and the water. The orange wireframe is the half vessel that was actually solved |
 | Add `heel` to the condition in `05` | The mesh becomes a full vessel and the waterline cuts the hull at an angle |
 

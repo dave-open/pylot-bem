@@ -71,6 +71,27 @@ diffraction space, property panes, and tabs for Results, Databases, Inspect,
 Match and Validation. [`docs/manual.md`](docs/manual.md) walks through it screen
 by screen and assumes you already know Capytaine.
 
+### Filling a library overnight
+
+Right-click the library → `Batch…`. A grid of drafts, heels and trims, and one
+line per mesh saying which periods it carries:
+
+```
+z_origin  -4.7 to -0.1 step 0.1     heel  -1, 0, 1     trim  -2, -1, 0, 1, 2
+
+1 -> 1, 2, 3, 4
+2 -> 5, 6, 7, 8, 9, 10, 12
+```
+
+705 conditions, 1410 meshes, 1410 solves — counted on screen before Start. A step
+that fails is logged and the run carries on, and starting the same job again
+resumes rather than duplicates, so a night that ended early needs no arithmetic
+to continue.
+
+`Save job…` keeps the whole thing as a 29-line text file beside the library, so
+it can be edited, kept and run again. `pylot_bem.batch` is the same feature
+without a window.
+
 ### Standalone executable
 
 ```bash
@@ -87,7 +108,7 @@ machine. Zip the `dist/pylot/` folder to distribute it.
 |---|---|
 | [`docs/manual.md`](docs/manual.md) | The application, screen by screen |
 | [`docs/api.md`](docs/api.md) | The reference: every public name, with its units |
-| [`examples/`](examples/) | Five runnable scripts, smallest first |
+| [`examples/`](examples/) | Six runnable scripts, smallest first |
 | [`docs/README.md`](docs/README.md) | Where the specification lives and why it is not here |
 
 ## Licence

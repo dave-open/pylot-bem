@@ -11,6 +11,7 @@ puts *around* them and where it will surprise you.
 - [2. Add a floating condition](#2-add-a-floating-condition)
 - [3. Build a calculation mesh](#3-build-a-calculation-mesh)
 - [4. Solve](#4-solve)
+- [4a. Batch — a night of it](#4a-batch--a-night-of-it)
 - [5. Look at what came back](#5-look-at-what-came-back)
 - [6. Resolve a conflict](#6-resolve-a-conflict)
 - [7. Get the data out](#7-get-the-data-out)
@@ -254,6 +255,133 @@ several workers, which is why the grid is drawn rather than a percentage.
 the workers now. Either way what came back is complete over a shorter grid — a
 truncated result is not a damaged one — and the result is marked `truncated` so
 you can tell later which run stopped early.
+
+---
+
+## 4a. Batch — a night of it
+
+Right-click the library → `Batch…`, or select some conditions and right-click →
+`Batch…` to start with those.
+
+Sections 2 to 4 are how you *explore* a vessel. They are not how you fill in the
+forty drafts, three heels and five trims a finished library needs — that is a
+night of clicking, and the computer can do it while you are not there.
+
+A batch is two halves, and either can be switched off.
+
+**The grid** is `z_origin` from / to / step, and a list of heels and trims in
+degrees. Each is multiplied out, so
+
+```
+z_origin  -4.7 to -0.1 step 0.1     47
+heel      -1, 0, 1                   3
+trim      -2, -1, 0, 1, 2            5
+```
+
+is **705 conditions**, which the screen says before you start. Lists take commas
+or spaces, and `-5..5..1` is a range.
+
+**The bands** are the second half, and are the reason this is not simply a loop.
+One line per mesh, written the way the job is written down:
+
+```
+1 -> 1, 2, 3, 4
+2 -> 5, 6, 7, 8, 9, 10, 12
+```
+
+Each line is `pct → periods`: build a mesh at that resolution, solve exactly
+those periods on it. Short waves need panels that long waves do not, and solver
+cost is quadratic in the panel count — so a single grid from 1 s to 12 s either
+wastes hours at the long end or returns confident nonsense at the short one.
+Splitting it is the whole point. `:` works as well as `→`, periods may be a
+`4..20..0.5` range, and anything after `#` is a note to yourself.
+
+**Apply to** decides which conditions the bands run on: the grid above, every
+condition in the library, or the ones selected in the tree. That last one, with
+the grid switched off, is how you add a frequency band to a library that is
+already built.
+
+Everything else — directions, depth, gravity, forward speed, lid, workers — is
+one setting for the whole job, and means what it means on the Solve screen.
+`Lid → Auto` is the one thing a batch can do that the command line cannot: it
+resolves per mesh and per band, because by then it is holding both.
+
+### What this job would do
+
+The four counts beside Start are the estimate, and they are computed by walking
+the whole job against the library — the same walk that then runs it, so the
+preview cannot promise work that does not happen:
+
+| | |
+|---|---|
+| **Conditions** | new, and how many of the grid are already there |
+| **Meshes** | to build, and how many existing ones are reused |
+| **Solves** | to run, and how many an existing result already covers |
+| **Problems** | six radiation per frequency plus one per direction, summed |
+
+There is deliberately **no memory or panel figure**. Those come out of a regrid
+that has not happened yet, and an invented number beside four real ones is
+indistinguishable from them. Each mesh reports its own as it is built, in the
+log — along with a warning when a band's shortest period is below what that mesh
+can resolve.
+
+### Keeping the job
+
+`Save job…` writes everything on the screen to a small text file — `.pylotjob`,
+offered beside the library and named after it. `Load job…` reads one back.
+
+A job is four numbers and a table that took a while to get right, and it outlives
+the run: it is what you start again after a night that ended early, what you send
+to whoever asked for the library, and what says a year later which drafts and
+periods the file actually covers. The 705-condition job above is 29 lines:
+
+```json
+{
+  "pylot_batch_job": 1,
+  "z_origins": [ -4.7, -4.6, -4.5, … ],
+  "heels_deg": [ -1.0, 0.0, 1.0 ],
+  "trims_deg": [ -2.0, -1.0, 0.0, 1.0, 2.0 ],
+  "bands": [ { "pct": 1.0, "iterations": 20, "periods": [ 1.0, 2.0, 3.0, 4.0 ] } ],
+  "water_depth": null,
+  …
+}
+```
+
+Editable in any text editor: the number lists stay on one line each, angles are
+in degrees with the unit in the key, and a field you delete loads as its default.
+Infinite depth is `null`.
+
+Loading tells you when the file says something this screen cannot show exactly —
+drafts that are not an evenly spaced range, bands at different remesh iterations,
+conditions named by an id this library has never had. Nothing is silently
+changed; what could not be shown is listed before you press Start.
+
+`pylot_bem.batch.save_job` and `load_job` are the same thing from Python.
+
+### Leaving it running
+
+**A step that fails is logged and the batch carries on.** One `z_origin` that
+lifts the hull clear of the water costs that condition and nothing else; the
+summary at the end counts the failures so a library with eleven holes in it does
+not look finished.
+
+**Running the same job again resumes it.** Conditions already at those values are
+reused rather than added beside themselves, meshes at the same `pct` and
+`iterations` are reused, and a solve whose every frequency an existing result
+already covers is skipped. So a night that ended early needs no arithmetic to
+continue — press Start on the same job. When there is genuinely nothing left,
+Start greys out and says so. Untick **Resume** to solve it all again anyway,
+which produces a second opinion and therefore a conflict, and is meant to.
+
+**Stop** lets the running solve finish, stores it, and starts nothing more.
+**Kill** ends the workers now and **discards the solve in flight** — that is
+where this differs from the Solve screen, which offers to keep it. There is
+nobody here at three in the morning to be asked, and everything already stored
+stays either way.
+
+The tree and the tabs update once, when the run ends. A library of seven hundred
+conditions redrawn after each of fourteen hundred steps would spend the night
+redrawing rather than solving.
 
 ---
 

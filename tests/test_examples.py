@@ -141,3 +141,24 @@ def test_04_reports_progress_and_cancels(capsys):
     assert "results       ['run1']" in out, "the cancelled run stored nothing"
 
     check("progress.pylot", conditions=1, results=1)
+
+
+def test_06_batches_a_grid_survives_a_bad_step_and_resumes(capsys):
+    """All three of the example's claims, asserted on what a reader sees.
+
+    Two conditions solved out of three asked for, the third refused with its
+    reason -- and the same job run again writing nothing. An example that ran
+    but quietly did none of what its docstring promises has failed.
+    """
+    run_example("06_batch_overnight.py")
+    out = capsys.readouterr().out
+
+    assert "created       2 conditions, 4 meshes, 4 results" in out
+    assert "nothing lies below the waterplane" in out, "the bad step names its reason"
+    assert "second pass   wrote 0 results" in out, "running it again must not duplicate"
+    assert "reused 2 conditions, skipped 4 solves" in out
+    assert "loads back    identical" in out, "the job it saved is the job it ran"
+
+    # Two conditions, two bands each: the third never got off the ground.
+    check("batch.pylot", conditions=2, results=4)
+    assert (EXAMPLES / "output" / "batch.pylotjob").exists()

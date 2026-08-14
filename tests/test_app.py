@@ -29,9 +29,11 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDialogButtonBox, QMessageBox
 
 from pylot_bem.api import Pylot
+from pylot_bem.app.batch import BatchDialog
 from pylot_bem.app.dialogs import LID_AUTO, LID_BELOW, CreateMeshDialog, NewConditionDialog, SolveDialog
 from pylot_bem.app.formatting import degrees_from_slope, period_from_omega, slope_from_degrees
 from pylot_bem.app.window import MainWindow
+from pylot_bem.batch import Band, BatchJob, plan, save_job
 from pylot_bem.solver import SolveSettings
 
 COARSE = {"pct": 20.0, "iterations": 5}
@@ -1115,6 +1117,351 @@ def test_the_solve_dialog_reports_a_frequency_that_failed(window):
     assert "FAILED" in log
     assert "not defined" in log, "the reason must reach the user, not only the fact"
     dialog.close()
+
+
+# --------------------------------------------------------------------------
+# The batch screen: a night of work, described once
+# --------------------------------------------------------------------------
+
+
+def batch_dialog(window, condition_ids=()):
+    dialog = BatchDialog(window.library, condition_ids, window)
+    dialog.ui.spinIterations.setValue(5)
+    dialog.ui.spinWorkers.setValue(1)
+    return dialog
+
+
+def test_the_batch_screen_shows_the_cost_before_start(window):
+    """The reason this screen exists rather than a loop in a script.
+
+    A grid of drafts, heels and trims is four numbers to type and a week to
+    solve, so the multiplication has to be on screen before Start -- in the
+    same units the Solve screen counts a single mesh in.
+    """
+    dialog = batch_dialog(window)
+    dialog.ui.spinZFrom.setValue(-4.7)
+    dialog.ui.spinZTo.setValue(-0.1)
+    dialog.ui.spinZStep.setValue(0.1)
+    dialog.ui.editHeels.setText("-1, 0, 1")
+    dialog.ui.editTrims.setText("-2, -1, 0, 1, 2")
+    dialog.ui.editBands.setPlainText("1 -> 1, 2, 3, 4\n2 -> 5, 6, 7, 8, 9, 10, 12")
+    dialog.ui.spinDirFrom.setValue(0.0)
+    dialog.ui.spinDirTo.setValue(180.0)
+    dialog.ui.spinDirStep.setValue(15.0)
+
+    assert "705 conditions" in dialog.ui.lblConditionGrid.text()
+    assert "1410" in dialog.ui.lblPlanMeshes.text()
+    assert "1410" in dialog.ui.lblPlanSolves.text()
+    # 705 conditions x 11 frequencies x (6 dofs + 13 directions), grouped the
+    # way the Solve screen groups a single mesh. 0 to 180 inclusive is 13
+    # headings, and it keeps all of them -- only a grid that comes back round
+    # to where it started drops its last point.
+    assert f"{705 * 11 * 19:,}" in dialog.ui.lblPlanProblems.text()
+
+    # Two of the fixture's conditions sit on this grid, so they are reused
+    # rather than added -- which is the resume rule, showing up in the preview
+    # of a job that has never been run.
+    preview = plan(window.library, dialog.job())
+    assert preview.conditions_existing == 2
+    assert preview.conditions_to_create == 703
+    assert dialog.ui.btnStart.isEnabled()
+    dialog.close()
+
+
+def test_the_batch_screen_lays_out_without_drawing_over_itself(window, qapp):
+    """A wrapped label reports a minimum height only once it has a width to
+    wrap against, so a dialog full of them opens shorter than the sum of what
+    is in it and the group boxes draw on top of each other. SolveDialog carries
+    the same fix; this screen is half again as tall, so it also has to stay on
+    the screen with its buttons reachable.
+    """
+    dialog = batch_dialog(window)
+    dialog.show()
+    qapp.processEvents()
+
+    groups = [
+        dialog.ui.groupConditions,
+        dialog.ui.groupBands,
+        dialog.ui.groupDirections,
+        dialog.ui.groupPhysical,
+        dialog.ui.groupLid,
+        dialog.ui.groupParallel,
+        dialog.ui.groupPlan,
+        dialog.ui.groupRun,
+    ]
+    for first, second in [(a, b) for a in groups for b in groups if a is not b]:
+        assert not first.geometry().intersects(second.geometry()), (
+            f"{first.objectName()} and {second.objectName()} overlap"
+        )
+
+    for button in (dialog.ui.btnStart, dialog.ui.btnStop, dialog.ui.btnKill, dialog.ui.btnClose):
+        bottom = button.mapTo(dialog, button.rect().bottomLeft()).y()
+        assert bottom <= dialog.height(), f"{button.objectName()} is below the bottom edge"
+    dialog.close()
+
+
+def test_the_batch_screen_refuses_a_band_table_it_cannot_read(window):
+    """Spec 09's second cross-cutting rule, on the one free-text field here."""
+    dialog = batch_dialog(window)
+    dialog.ui.editBands.setPlainText("1 -> once upon a time")
+
+    assert not dialog.ui.btnStart.isEnabled()
+    assert "not a number" in dialog.ui.lblPlanProblem.text()
+    assert "not a number" in dialog.ui.lblBands.text()
+    dialog.close()
+
+
+def test_the_batch_screen_says_when_there_is_nothing_to_do(window):
+    """A disabled Start with no reason beside it reads as a broken button."""
+    dialog = batch_dialog(window)
+    dialog.ui.chkCreateConditions.setChecked(False)
+    dialog.ui.comboTargets.setCurrentIndex(0)  # the grid, which is now empty
+
+    assert not dialog.ui.btnStart.isEnabled()
+    assert "no conditions and no meshes" in dialog.ui.lblPlanProblem.text()
+    dialog.close()
+
+
+def test_the_batch_screen_says_whether_half_the_circle_is_enough(window):
+    """Getting this wrong is invisible: mafredo interpolates across the
+    unsolved half and answers confidently. A heeled condition gets a full mesh,
+    which has no half to mirror -- so the answer depends on the job, not on the
+    hull alone.
+    """
+    dialog = batch_dialog(window)
+    dialog.ui.editHeels.setText("0")
+    assert "mirror image" in dialog.ui.lblDirList.text()
+
+    dialog.ui.editHeels.setText("0, 5")
+    assert "whole circle" in dialog.ui.lblDirList.text()
+    dialog.close()
+
+
+def test_the_batch_screen_offers_the_conditions_selected_in_the_tree(window):
+    """Picking conditions out of the tree is how an existing library gets
+    filled in, so the batch has to be able to see that selection.
+    """
+    dialog = batch_dialog(window, ["design", "ballast"])
+    assert "(2)" in dialog.ui.comboTargets.itemText(2)
+    assert dialog.ui.comboTargets.model().item(2).isEnabled()
+
+    dialog.ui.comboTargets.setCurrentIndex(2)
+    dialog.ui.chkCreateConditions.setChecked(False)
+    assert set(dialog.job().condition_ids) == {"design", "ballast"}
+    dialog.close()
+
+
+def test_the_batch_screen_disables_that_choice_when_nothing_is_selected(window):
+    """Disabled rather than hidden: an option that appears only sometimes is
+    one a user never learns is there.
+    """
+    dialog = batch_dialog(window)
+    assert not dialog.ui.comboTargets.model().item(2).isEnabled()
+    dialog.close()
+
+
+def test_a_batch_runs_and_fills_the_library(window, qapp):
+    """The whole point, end to end: real conditions, real meshes, real solves.
+
+    Through the same pool the Solve screen drives, in worker processes, on its
+    own connection to the library -- which is the arrangement the batch thread
+    exists to make safe.
+    """
+    dialog = batch_dialog(window)
+    # Clear of the fixture's own conditions, so the two here are two new ones.
+    dialog.ui.spinZFrom.setValue(-3.7)
+    dialog.ui.spinZTo.setValue(-3.2)
+    dialog.ui.spinZStep.setValue(0.5)
+    dialog.ui.editBands.setPlainText("20 -> 10")
+    dialog.ui.spinDirFrom.setValue(0.0)
+    dialog.ui.spinDirTo.setValue(90.0)
+    dialog.ui.spinDirStep.setValue(90.0)
+
+    before = len(window.library.results())
+    # The fixture is deliberately in conflict, so what matters is that a batch
+    # adds no findings of its own -- not that the library is clean.
+    findings = window.library.validate()
+    changed = []
+    dialog.libraryChanged.connect(lambda: changed.append(True))
+    dialog._start()
+
+    assert pump(qapp, lambda: dialog.outcome is not None), "the batch never finished"
+    outcome = dialog.outcome
+
+    assert outcome.failures == ()
+    assert len(outcome.conditions_created) == 2
+    assert len(outcome.results_stored) == 2
+    assert changed, "the window is never told the library moved under it"
+
+    # The window's own connection, which the batch never touched, sees it.
+    window.refresh()
+    assert len(window.library.results()) == before + 2
+    assert window.library.validate() == findings, "a batch must not add findings of its own"
+    dialog.close()
+
+
+def test_a_batch_that_has_already_been_run_offers_nothing_to_do(window, qapp):
+    """Resume, said in the place the user is already looking.
+
+    After a run the counts are re-previewed against the library as it now is,
+    so what is beside Start describes running it *again* -- which after a
+    complete job is nothing at all.
+    """
+    dialog = batch_dialog(window)
+    dialog.ui.spinZFrom.setValue(-3.1)
+    dialog.ui.spinZTo.setValue(-3.1)
+    dialog.ui.editBands.setPlainText("20 -> 10")
+    dialog.ui.spinDirStep.setValue(90.0)
+    dialog._start()
+
+    assert pump(qapp, lambda: dialog.outcome is not None), "the batch never finished"
+    assert not dialog.ui.btnStart.isEnabled()
+    assert "already exists" in dialog.ui.lblPlanProblem.text()
+    dialog.close()
+
+
+def test_a_batch_step_that_fails_is_logged_and_the_rest_still_runs(window, qapp):
+    """The promise that makes an unattended run worth starting."""
+    dialog = batch_dialog(window)
+    dialog.ui.chkCreateConditions.setChecked(True)
+    dialog.ui.spinZFrom.setValue(-3.3)
+    dialog.ui.spinZTo.setValue(50.0)
+    dialog.ui.spinZStep.setValue(53.3)  # exactly two: one floating, one in the air
+    dialog.ui.editBands.setPlainText("20 -> 10")
+    dialog.ui.spinDirStep.setValue(90.0)
+    assert dialog.job().z_origins == (-3.3, 50.0)
+
+    dialog._start()
+    assert pump(qapp, lambda: dialog.outcome is not None), "the batch never finished"
+
+    assert len(dialog.outcome.failures) == 1
+    assert len(dialog.outcome.results_stored) == 1, "the other condition solved regardless"
+    log = dialog.ui.textLog.toPlainText()
+    assert "nothing lies below the waterplane" in log, "the reason has to reach the log"
+    assert "1 FAILED" in log, "and the count has to reach the summary"
+    dialog.close()
+
+
+def test_a_job_saved_from_the_screen_loads_back_onto_it(window, tmp_path):
+    """The screen and the file agree, both ways.
+
+    Asserted by comparing the jobs rather than the widgets: what matters is
+    that the same work happens, not that every spin box landed on the same
+    pixel.
+    """
+    dialog = batch_dialog(window)
+    dialog.ui.spinZFrom.setValue(-4.7)
+    dialog.ui.spinZTo.setValue(-0.1)
+    dialog.ui.spinZStep.setValue(0.1)
+    dialog.ui.editHeels.setText("-1, 0, 1")
+    dialog.ui.editTrims.setText("-2, -1, 0, 1, 2")
+    dialog.ui.editBands.setPlainText("1 -> 1, 2, 3, 4\n2 -> 5, 6, 7, 8, 9, 10, 12")
+    dialog.ui.comboLid.setCurrentIndex(2)
+    dialog.ui.spinLidZ.setValue(-0.35)
+    dialog.ui.chkInfiniteDepth.setChecked(False)
+    dialog.ui.spinDepth.setValue(80.0)
+    dialog.ui.chkResume.setChecked(False)
+    saved = dialog.job()
+
+    path = dialog.save_job_to_file(tmp_path / "night")
+    assert path.name == "night.pylotjob"
+
+    fresh = batch_dialog(window)
+    assert fresh.job() != saved, "otherwise this passes without loading anything"
+    assert fresh.load_job_from_file(path) is not None
+    assert fresh.job() == saved
+    assert "-0.35" in fresh.ui.lblLidInfo.text(), "and the derived readouts followed"
+
+    dialog.close()
+    fresh.close()
+
+
+def test_loading_a_job_this_screen_cannot_show_exactly_says_which_part(window, tmp_path, monkeypatch):
+    """A `BatchJob` can say things these widgets cannot -- drafts that are not
+    evenly spaced, bands at different remesh iterations. Loading one that
+    quietly became a different job is the one outcome this must not have.
+    """
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: None)
+    save_job(
+        BatchJob(
+            z_origins=(-4.0, -3.9, -1.0),
+            bands=(Band(1.0, (4.0,), iterations=30), Band(2.0, (10.0,), iterations=10)),
+        ),
+        tmp_path / "odd.pylotjob",
+    )
+
+    dialog = batch_dialog(window)
+    dialog.load_job_from_file(tmp_path / "odd.pylotjob")
+
+    log = dialog.ui.textLog.toPlainText()
+    assert "not an evenly spaced range" in log
+    assert "different remesh iterations" in log
+    dialog.close()
+
+
+def test_loading_a_job_that_names_conditions_from_another_library_says_so(
+    window, tmp_path, monkeypatch
+):
+    """Ids belong to the library they were made in. A job listing them means
+    the same thing only against the same file, and silently targeting the two
+    that happen to match is not it.
+    """
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: None)
+    save_job(
+        BatchJob(
+            bands=(Band(20.0, (10.0,), iterations=5),),
+            targets="listed",
+            condition_ids=("design", "from-another-file"),
+        ),
+        tmp_path / "listed.pylotjob",
+    )
+
+    dialog = batch_dialog(window)
+    dialog.load_job_from_file(tmp_path / "listed.pylotjob")
+
+    assert "not in this library" in dialog.ui.textLog.toPlainText()
+    assert dialog.job().condition_ids == ("design",)
+    dialog.close()
+
+
+def test_loading_the_library_instead_of_a_job_is_refused(window, path, monkeypatch):
+    """The file sitting next to it, which is the mistake anyone would make."""
+    said = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda _p, title, text: said.append(text))
+
+    dialog = batch_dialog(window)
+    before = dialog.job()
+
+    assert dialog.load_job_from_file(path) is None
+    assert said and "is a pylot library, not a batch job" in said[0], said
+    assert dialog.job() == before, "a refused load must leave the screen alone"
+    dialog.close()
+
+
+def test_the_batch_screen_is_reachable_from_the_tree(window):
+    """Every action lives on the thing it acts on: a batch acts on the library,
+    and offers to narrow itself to whatever conditions are selected.
+    """
+    asked = []
+    # The window's own slot opens the screen modally, which is exactly what a
+    # test must not do. Replaced rather than allowed and closed: what is under
+    # test is which ids the tree hands over, not the dialog.
+    window.tree.batchRequested.disconnect(window.run_batch)
+    window.tree.batchRequested.connect(asked.append)
+
+    window.tree.select_ids(["library"])
+    library_menu = window.tree.menu_for("library", "library")
+    batch = next(a for a in library_menu.actions() if a.text() == "Batch…")
+    batch.trigger()
+    assert asked == [[]], "from the library row a batch takes the whole library"
+
+    # Two conditions selected: the batch offers to narrow itself to them,
+    # which is how an existing library gets filled in.
+    window.tree.select_ids(["design", "ballast"])
+    condition_menu = window.tree.menu_for("condition", "design")
+    narrowed = next(a for a in condition_menu.actions() if a.text() == "Batch on 2 conditions…")
+    narrowed.trigger()
+    assert sorted(asked[1]) == ["ballast", "design"]
 
 
 # --------------------------------------------------------------------------

@@ -25,10 +25,10 @@ from pathlib import Path
 import pytest
 from PySide6.QtWidgets import QDialog, QWidget
 
-from pylot_bem.app import dialogs, merge, properties
+from pylot_bem.app import batch, dialogs, merge, properties
 from pylot_bem.app.guis import regenerate
 
-FILLERS = (properties, dialogs, merge)
+FILLERS = (properties, dialogs, merge, batch)
 
 
 def test_every_ui_file_has_a_generated_module():
@@ -117,7 +117,15 @@ ALL_CLASSES = [
 def test_the_parser_found_the_classes():
     """Otherwise the parametrised test below runs zero cases and passes."""
     names = {name for _, name, _, _ in ALL_CLASSES}
-    assert {"LibraryPane", "ConditionPane", "MeshPane", "ResultPane", "SolveDialog", "MergeDialog"} <= names
+    assert {
+        "LibraryPane",
+        "ConditionPane",
+        "MeshPane",
+        "ResultPane",
+        "SolveDialog",
+        "MergeDialog",
+        "BatchDialog",
+    } <= names
     assert all(names for *_, names in ALL_CLASSES), "a class was found with no widgets read"
 
 

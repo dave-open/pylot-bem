@@ -13,7 +13,7 @@ That split is the point, and a test enforces it.
 Everything on `Library` is documented in `pylot-db`; this covers what
 `pylot-bem` adds.
 
-[Units](#units-and-conventions) · [`Pylot`](#pylot--building) · [Plotting](#plotting) · [The application](#the-application) · [Solving](#free-functions) · [Errors](#errors)
+[Units](#units-and-conventions) · [`Pylot`](#pylot--building) · [Batch](#batch--many-of-them-at-once) · [Plotting](#plotting) · [The application](#the-application) · [Solving](#free-functions) · [Errors](#errors)
 
 ---
 
@@ -147,6 +147,184 @@ Not the calculation mesh: nothing is cut and nothing is regridded, so this is th
 ### `application_point_in_diffraction_space(condition) -> FloatArray`
 
 The stored vessel-local application point, converted with the condition's transform. The solver wants it in diffraction space; the library stores it vessel-local. This is the only place that conversion is written, and you need it if you call `solve()` yourself — passing the stored point straight through puts the moment reference out by the draft.
+
+---
+
+
+## Batch — many of them at once
+
+```python
+from pylot_bem.batch import (
+    Band, BatchJob, BatchRun, load_job, parse_bands, plan, save_job, value_range,
+)
+from pylot_bem.angles import slope_from_degrees
+```
+
+Fill in a grid of conditions, mesh each one at several resolutions, and solve
+each mesh over the periods that resolution can carry. Built for a run nobody is
+watching, which is what decides its behaviour.
+
+```python
+job = BatchJob(
+    z_origins=value_range(-4.7, -0.1, 0.1),                        # 47
+    heels=tuple(slope_from_degrees(d) for d in (-1, 0, 1)),        #  3
+    trims=tuple(slope_from_degrees(d) for d in (-2, -1, 0, 1, 2)), #  5
+    bands=parse_bands("1 -> 1, 2, 3, 4\n2 -> 5, 6, 7, 8, 9, 10, 12"),
+    wave_directions=tuple(float(d) for d in range(0, 181, 15)),
+)
+
+preview = plan(library, job)
+print(preview.conditions_to_create, preview.meshes_to_build, preview.problems)
+#   705            1410            147345
+
+outcome = BatchRun(library, job).run(progress=lambda event: print(event.message))
+print(len(outcome.results_stored), "stored,", len(outcome.failures), "failed")
+```
+
+A job is data, so it can be [saved and loaded](#save_jobjob-path---path--load_jobpath---batchjob):
+
+```python
+save_job(job, "tanker.pylotjob")
+BatchRun(library, load_job("tanker.pylotjob")).run()
+```
+
+### `Band(pct, periods, iterations=20)`
+
+One mesh resolution and the periods solved on it. Panel size sets the shortest
+wave a mesh can resolve and solver cost is quadratic in the panel count, so a
+grid spanning 1 s to 12 s on one mesh either wastes hours at the long end or
+returns confident nonsense at the short one. `omegas` is the periods as an
+ascending frequency grid.
+
+### `BatchJob(...)`
+
+The whole job as one frozen value. The grid (`z_origins` × `heels` × `trims`)
+creates conditions; the `bands` mesh and solve them; either half may be empty.
+Slopes, not degrees — the same rule as everywhere else. `targets` picks which
+conditions the bands run on:
+
+| | |
+|---|---|
+| `TARGET_GRID` | the grid above, **including entries that already exist** — which is what makes a second run continue rather than target nothing |
+| `TARGET_ALL` | that grid *and* every other condition in the library |
+| `TARGET_LISTED` | `condition_ids`, and nothing else |
+
+`lid` is a **mode** (`"none"`, `"surface"`, `"below"`, `"auto"`) rather than a
+position, because `auto` has no answer until a mesh exists — which in a batch is
+halfway through the run. It is resolved per mesh and per band. The CLI refuses
+`auto` for exactly this reason; a batch is holding the mesh by then.
+
+`resume=True` is the default and is the whole point. See below.
+
+### `parse_bands(text)` · `parse_numbers(text, *, what)` · `value_range(start, stop, step)`
+
+`parse_bands` reads the table the way a job gets written down — `1 -> 1, 2, 3, 4`
+per line, `:` as well as `->`, `#` for a note — and keeps the order written.
+`parse_numbers` takes commas or whitespace, plus `4..20..0.5` ranges. Both raise
+`BatchError` with a sentence written for a user.
+
+`value_range` includes `stop` when the step lands on it: *0.1 to 4.7 step 0.1* is
+the 47 values you counted, not the 46 `arange` returns, and the results are
+rounded so `-4.6000000000005` never reaches a `z_origin` column.
+
+### `plan(library, job, *, state=None) -> BatchPlan`
+
+Walks the job against the library and changes nothing. Reports
+`conditions_to_create` / `conditions_existing`, `meshes_to_build` /
+`meshes_reused`, `solves_to_run` / `solves_skipped`, `problems` and
+`total_steps`.
+
+**There is no memory or panel estimate**, deliberately: those come out of a
+regrid that has not run, and an invented figure beside real ones is
+indistinguishable from them. `BatchRun` logs each mesh's own as it is built.
+
+`state` is a `LibraryState.of(library)` you already read, for a caller planning
+the same library over and over. A `CalculationMesh` carries its geometry, so
+`Library.meshes()` decodes every vertex array in the file to answer a question
+about `pct` — fine once, and a third of a second per keystroke on the batch
+screen, which is why that screen reads it once. Scripts should omit it.
+
+### `save_job(job, path) -> Path` · `load_job(path) -> BatchJob`
+
+Keep a job. It is four numbers and a table that took a while to get right, it
+outlives the run, and it is what says a year later which drafts and periods a
+library actually covers.
+
+```python
+save_job(job, "tanker.pylotjob")
+again = load_job("tanker.pylotjob")     # == job
+```
+
+JSON, with `.pylotjob` added when the path has no suffix and never substituted
+for one you chose. The whole 705-condition job above is 29 lines, because number
+lists stay on one line each — the drafts and the periods are the half worth
+editing by hand:
+
+```json
+{
+  "pylot_batch_job": 1,
+  "z_origins": [ -4.7, -4.6, -4.5, … ],
+  "heels_deg": [ -1.0, 0.0, 1.0 ],
+  "bands": [ { "pct": 1.0, "iterations": 20, "periods": [ 1.0, 2.0, 3.0, 4.0 ] } ],
+  "water_depth": null,
+  …
+}
+```
+
+- **Angles are written in degrees**, with the unit in the key. A job file is a
+  human-facing boundary and that is the rule at every one of them. The round trip
+  is `sin(asin(x))` — about one ULP, five orders of magnitude tighter than the
+  1e-3 at which two conditions are the same condition.
+- **Infinite depth is `null`**, not `Infinity`: that is what Python's JSON writes
+  for it and it is not valid JSON, so a file carrying it reads back here and
+  nowhere else.
+- **Missing fields load as defaults**, which is what makes one worth hand-editing.
+  Present-and-wrong is refused, `targets` and `lid` by `BatchJob` itself.
+- **`condition_ids` only mean something against the library they came from.** The
+  batch screen says how many of them it found.
+
+`load_job` raises `BatchError` naming the file for a missing or unknown version
+marker, unreadable JSON, or a binary file — and recognises a `.pylot` library
+specifically, since it sits in the same folder under a name one letter away.
+
+`job_to_dict` / `job_from_dict` are the same conversion without the file, for
+putting a job in some other container.
+
+### `BatchRun(library, job)`
+
+`run(progress=None)` blocks and returns a `BatchOutcome`; `stop()` and `kill()`
+are safe from another thread. It executes the plan made at construction, so the
+counts you previewed are the work that happens.
+
+| | |
+|---|---|
+| `stop()` | the running solve finishes and is stored; nothing further starts |
+| `kill()` | the running solve's workers are terminated and **nothing is stored for it** |
+
+Kill discards where the Solve screen offers to keep, because there is nobody
+watching an overnight run to be asked — the CLI takes the same view of an
+interrupt.
+
+**A step that raises does not end the run.** It is recorded in
+`BatchOutcome.failures` as `(what, why)` and the next step starts. One `z_origin`
+above the waterline costs that condition and no other.
+
+**Running the same job again resumes it.** A condition within
+`pylot_db.validation.CONDITION_TOLERANCE` of a requested one is reused — the
+validator would otherwise report the pair as duplicates — a mesh at the same
+`pct` and `iterations` is reused, and a solve is skipped when an existing result
+on that mesh covers **every** one of the band's frequencies. Every one, not some:
+skipping on a partial match is how a database quietly ends up with holes.
+
+`progress` gets a `BatchEvent` (`kind`, `message`, `done`, `total`, `elapsed`,
+`solve`) per step and repeatedly during each solve. `kind` is `"condition"`,
+`"mesh"`, `"solve"`, `"skip"`, `"warning"`, `"failed"` or `"solving"`.
+
+> **From a thread, open your own connection.** `sqlite3` refuses a connection
+> used from a thread other than the one that opened it. Every pylot library runs
+> in WAL mode, so a second `Pylot.open(path)` on the worker thread writes while
+> the first goes on reading — which is what `pylot_bem.app.batch.BatchThread`
+> does.
 
 ---
 
