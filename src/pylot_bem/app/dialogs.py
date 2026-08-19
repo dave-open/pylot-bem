@@ -18,6 +18,7 @@ from pylot_db.frames import check_domain, transform
 from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QListWidgetItem, QMessageBox, QWidget
 
+from pylot_bem.api import condition_name
 from pylot_bem.app.formatting import (
     CLEAN,
     CONFLICT,
@@ -29,6 +30,7 @@ from pylot_bem.app.formatting import (
     omega_from_period,
     period_from_omega,
     slope_from_degrees,
+    spans_the_circle,
     symmetry_reason,
 )
 from pylot_bem.app.forms.dlg_create_mesh_ui import Ui_DlgCreateMesh
@@ -377,6 +379,13 @@ class NewConditionDialog(QDialog):
             self._set_ok(False)
             return
 
+        # The label the condition will get if the field is left alone, shown as
+        # the field's own placeholder rather than typed into it: a value that
+        # appears in an editable box is a value the user has to decide about,
+        # and this one is a sensible default they can simply accept.
+        self.ui.editLabel.setPlaceholderText(
+            condition_name(values["z_origin"], values["heel"], values["trim"])
+        )
         self.ui.lblApplicationPoint.setText(derived(format_point(point), "vessel-local"))
         self.ui.lblSubmerged.setText(
             derived(
@@ -702,9 +711,7 @@ class SolveDialog(QDialog):
         directions = self.directions()
 
         self.ui.lblPeriodList.setText(derived(format_grid(periods), f"{len(periods)} frequencies"))
-        self.ui.lblDirList.setText(
-            derived(format_grid(directions, decimals=1), self._direction_note(directions))
-        )
+        self.ui.lblDirList.setText(self._direction_note(directions))
 
         mode = self.ui.comboLid.currentIndex()
         self.ui.spinLidZ.setEnabled(mode == LID_BELOW)
@@ -747,13 +754,38 @@ class SolveDialog(QDialog):
         self.ui.btnStart.setEnabled(not id_problem)
 
     def _direction_note(self, directions) -> str:
-        """What the grid covers, and what fills in the rest."""
+        """The grid, and what it does or does not cover.
+
+        Returns the whole label rather than a note for :func:`derived` to grey
+        out, because one of the four answers is a **warning** and has to be
+        able to say so in colour -- the same shape as the resolution limit
+        above it.
+
+        The warning is the one that earns this method. Half a circle on a
+        **full vessel** has no other half to mirror, and mafredo does not
+        refuse a heading past 180: it interpolates across whatever was never
+        solved and returns a confident, wrong number. Nothing downstream
+        detects it, and nothing else on this screen would have said so -- the
+        note used to claim "the whole circle is solved" from the fact that the
+        mesh was asymmetric, without ever looking at the grid.
+        """
+        grid = format_grid(directions, decimals=1)
         count = f"{len(directions)}, direction of travel"
+
         if not self._mesh.is_xz_symmetric:
-            return f"{count} — the hull is not symmetric here, so the whole circle is solved"
+            if spans_the_circle(directions):
+                return derived(grid, f"{count} — the hull is not symmetric here, so the whole circle is solved")
+            return (
+                f'{grid} <span style="color:{INCOMPLETE}">— {count}. This mesh is a <b>full '
+                f"vessel</b> and is not symmetric, so nothing fills in the rest: the grid stops at "
+                f"{max(directions):g}° and the delivered database is interpolated across the gap "
+                "and wrong there, with nothing to show why. Solve the whole circle.</span>"
+            )
         if max(directions) <= 180.0 + 1e-9:
-            return f"{count} — the other half is the mirror image and is filled in on delivery"
-        return f"{count} — past 180 is the mirror of what is already solved, so this is redundant work"
+            return derived(grid, f"{count} — the other half is the mirror image and is filled in on delivery")
+        return derived(
+            grid, f"{count} — past 180 is the mirror of what is already solved, so this is redundant work"
+        )
 
     def _lid_text(self, mode: int) -> str:
         if mode == LID_NONE:

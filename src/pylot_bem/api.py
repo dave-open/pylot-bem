@@ -40,11 +40,12 @@ from pylot_db.entities import CalculationMesh, FloatArray, FloatingCondition, Re
 from pylot_db.frames import transform, transform_points
 from pylot_db.storage import Library
 
+from pylot_bem.angles import degrees_from_slope
 from pylot_bem.geometry import load_mesh_file
 from pylot_bem.mesh_pipeline import MeshGeometry, application_point_for, build_mesh, check_full_mesh
 from pylot_bem.solver import SOLVE_RHO_SI, Progress, SolverError, SolveSettings, solve, solver_provenance
 
-__all__ = ["Pylot"]
+__all__ = ["Pylot", "condition_name"]
 
 # The dataset's own record of what was solved, against what we asked for.
 # Compared, not read: a mismatch means the request and the run disagree, and
@@ -54,6 +55,53 @@ __all__ = ["Pylot"]
 # has none. It is the check that the stored result really is normalised to
 # SOLVE_RHO, which is the assumption every delivery then scales from.
 _SETTING_COORDS = ("rho", "g", "water_depth", "forward_speed")
+
+
+def condition_name(z_origin: float, heel: float, trim: float) -> str:
+    """A condition's default label: what floats it, in the units it is read in.
+
+    ``z-4.70_h0.00_t-1.00`` -- ``z_origin`` in metres, then heel and then trim
+    in **degrees**, two decimals each. Degrees because that is what every screen
+    and every column shows; a slope in a label would be the one place in pylot
+    that showed one.
+
+    Each number carries the letter of what it is. Three signed decimals in a
+    row are three numbers nobody can tell apart at a glance, and the one that
+    matters is not the one in the middle: ``z`` is metres of draft and ``h``
+    and ``t`` are degrees, so a reader who mistakes one for another is out by
+    an order of magnitude and a unit. The letters are for the eye only --
+    nothing parses this, here or anywhere.
+
+    A label, never an id. Ids are opaque and nothing may parse one (ADR-4) --
+    the previous implementation encoded parameters into names and then read
+    them back out, which is the failure that rule exists to prevent. A label is
+    display only, nothing anywhere parses it, and it can be corrected
+    afterwards, so deriving one carries none of that risk and solves the
+    problem a generated id creates: a tree of seven hundred conditions, every
+    row a different uuid, sorted by nothing anybody can see.
+
+    Two decimals is the same precision the tree's own columns use, and one
+    order of magnitude finer than the 1e-3 at which two conditions are held to
+    be the same condition -- so two rows that read alike are two conditions
+    that are alike.
+
+    Args:
+        z_origin: Height of the vessel origin above the waterplane [m].
+        heel: Heel **slope**.
+        trim: Trim **slope**.
+
+    Returns:
+        The label.
+    """
+    # `+ 0.0` after rounding, or a heel of -1e-9 degrees reads as "-0.00" --
+    # negative zero survives formatting and looks like a typo in a column of
+    # otherwise identical rows.
+    parts = (
+        ("z", z_origin),
+        ("h", degrees_from_slope(heel)),
+        ("t", degrees_from_slope(trim)),
+    )
+    return "_".join(f"{letter}{round(value, 2) + 0.0:.2f}" for letter, value in parts)
 
 
 class Pylot(Library):
@@ -158,7 +206,12 @@ class Pylot(Library):
                 :func:`pylot_bem.angles.slope_from_degrees` rather than
                 converting at the call site.
             trim: Trim **slope**, not degrees. Positive puts the bow down.
-            label: Human display only.
+            label: Human display only. Blank takes
+                :func:`condition_name` -- ``z_origin`` and the two angles in
+                degrees -- because the alternative shown everywhere a condition
+                appears is its generated id, and a tree of seven hundred uuids
+                is a tree nobody can read. Nothing parses a label, so a derived
+                one is safe in a way a derived id would not be.
             condition_id: Explicit id; generated when omitted.
 
         Returns:
@@ -174,7 +227,7 @@ class Pylot(Library):
             heel=heel,
             z_origin=z_origin,
             application_point=application_point_for(self.base_shape, pose),
-            label=label,
+            label=label or condition_name(z_origin, heel, trim),
             condition_id=condition_id,
         )
 

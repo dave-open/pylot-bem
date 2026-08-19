@@ -49,10 +49,14 @@ from typing import Self
 import numpy as np
 from pylot_db.assembly import OMEGA_TOLERANCE
 from pylot_db.entities import CalculationMesh, FloatingCondition
+
+# Aliased: `is_xz_symmetric` is also the name of the mesh attribute this
+# produces, and BatchJob takes that attribute as an argument one scope away.
+from pylot_db.frames import is_xz_symmetric as mesh_would_be_symmetric
 from pylot_db.storage import LibraryError
 from pylot_db.validation import CONDITION_TOLERANCE
 
-from pylot_bem.angles import degrees_from_slope, slope_from_degrees
+from pylot_bem.angles import degrees_from_slope, slope_from_degrees, spans_the_circle
 from pylot_bem.api import Pylot
 from pylot_bem.estimates import format_memory, shortest_reliable_period, solved_panels
 from pylot_bem.mesh_pipeline import MeshPipelineError
@@ -330,8 +334,23 @@ class BatchJob:
             ``condition_ids`` and nothing else.
         condition_ids: The conditions, when ``targets`` is
             :data:`TARGET_LISTED`.
-        wave_directions: Wave directions [deg], direction of travel. Empty
-            solves radiation only.
+        wave_directions: Wave directions [deg], direction of travel, for a
+            **half-vessel** mesh. Empty solves radiation only.
+        wave_directions_full: The same, for a **full-vessel** mesh. Empty falls
+            back to ``wave_directions``.
+
+            Two grids because one grid cannot be right for both. A symmetric
+            hull at zero heel is meshed as a half vessel whose port side is the
+            mirror of its starboard side, so 0-180 is solved and the rest is
+            filled in exactly on delivery. Heel that same hull by a degree and
+            the mesh is a full vessel with nothing to mirror -- and a grid that
+            stops at 180 delivers a database mafredo interpolates across and
+            answers confidently from.
+
+            A grid of drafts crossed with heels of -1, 0 and 1 contains both
+            kinds, which is why this is not a setting anybody can get right
+            once for a whole job. Which grid a solve uses is **derived from the
+            mesh**, never chosen -- see :meth:`directions_for`.
         water_depth: [m]. ``inf`` for infinite depth.
         g: Gravitational acceleration [m/s2].
         forward_speed: [m/s].
@@ -354,6 +373,7 @@ class BatchJob:
     targets: str = TARGET_GRID
     condition_ids: tuple[str, ...] = ()
     wave_directions: tuple[float, ...] = ()
+    wave_directions_full: tuple[float, ...] = ()
     water_depth: float = np.inf
     g: float = 9.81
     forward_speed: float = 0.0
@@ -369,11 +389,39 @@ class BatchJob:
         if self.lid not in LID_CHOICES:
             raise BatchError(f"lid must be one of {LID_CHOICES}, got {self.lid!r}")
 
-    def settings_for(self, band: Band, lid_z: float | None) -> SolveSettings:
-        """The job's physical settings over one band's frequency grid."""
+    def directions_for(self, *, is_xz_symmetric: bool) -> tuple[float, ...]:
+        """The heading grid for a mesh, chosen by what the mesh **is**.
+
+        Derived and not selected, for the same reason ``is_xz_symmetric``
+        itself is: the two are one fact. A job that let a caller pick the grid
+        per solve would let it pick the half grid for a full vessel, which is
+        precisely the mistake this exists to make impossible.
+
+        Args:
+            is_xz_symmetric: Whether the mesh is a half vessel.
+
+        Returns:
+            ``wave_directions`` for a half vessel; ``wave_directions_full`` for
+            a full one, falling back to ``wave_directions`` when the job never
+            said. The fallback is a convenience for a job with no heel in it at
+            all -- where it is also harmless, because such a job never builds a
+            full mesh. Where it is *not* harmless, :func:`plan` counts the
+            solves it affects and the run says so per solve.
+        """
+        if is_xz_symmetric:
+            return tuple(self.wave_directions)
+        return tuple(self.wave_directions_full or self.wave_directions)
+
+    def settings_for(self, band: Band, lid_z: float | None, *, is_xz_symmetric: bool) -> SolveSettings:
+        """The job's physical settings over one band's frequency grid.
+
+        ``is_xz_symmetric`` is keyword-only and has no default: it decides
+        which heading grid this solve gets, and a default would be a guess
+        about the one thing that must not be guessed.
+        """
         return SolveSettings(
             omegas=band.omegas,
-            wave_directions=tuple(self.wave_directions),
+            wave_directions=self.directions_for(is_xz_symmetric=is_xz_symmetric),
             water_depth=self.water_depth,
             g=self.g,
             forward_speed=self.forward_speed,
@@ -454,6 +502,7 @@ def job_to_dict(job: BatchJob) -> dict:
         "targets": job.targets,
         "condition_ids": list(job.condition_ids),
         "wave_directions": [float(d) for d in job.wave_directions],
+        "wave_directions_full": [float(d) for d in job.wave_directions_full],
         "water_depth": None if np.isinf(job.water_depth) else float(job.water_depth),
         "g": job.g,
         "forward_speed": job.forward_speed,
@@ -518,6 +567,7 @@ def job_from_dict(data: dict) -> BatchJob:
         targets=str(data.get("targets", defaults.targets)),
         condition_ids=tuple(str(i) for i in data.get("condition_ids", ())),
         wave_directions=numbers("wave_directions"),
+        wave_directions_full=numbers("wave_directions_full"),
         water_depth=np.inf if depth is None else float(depth),
         g=float(data.get("g", defaults.g)),
         forward_speed=float(data.get("forward_speed", defaults.forward_speed)),
@@ -630,6 +680,11 @@ class PlannedSolve:
     Attributes:
         condition: Index into :attr:`BatchPlan.conditions`.
         band: The resolution and periods.
+        full_vessel: Whether this mesh will be a **whole** hull rather than a
+            half. Derived here, by the same rule
+            :meth:`~pylot_bem.api.Pylot.create_mesh` will derive it by, because
+            it decides which heading grid the solve gets -- and therefore how
+            many problems it is, which is half of what the preview is counting.
         mesh_id: A mesh already at this ``pct`` and ``iterations`` that will be
             reused, or blank when one will be built.
         covered_by: A result already covering every one of the band's
@@ -638,6 +693,7 @@ class PlannedSolve:
 
     condition: int
     band: Band
+    full_vessel: bool = False
     mesh_id: str = ""
     covered_by: str = ""
 
@@ -662,13 +718,17 @@ class BatchPlan:
     Attributes:
         conditions: Every condition the job touches, new and existing.
         steps: One per condition per band, in run order.
-        directions: How many wave directions each solve carries, for the
-            problem count.
+        directions: Wave directions a **half-vessel** solve carries.
+        directions_full: Wave directions a **full-vessel** solve carries. The
+            two are counted apart because a job that heels a symmetric hull
+            contains both kinds, and a single figure would be wrong for one of
+            them -- in the direction that under-counts the work.
     """
 
     conditions: tuple[PlannedCondition, ...] = ()
     steps: tuple[PlannedSolve, ...] = ()
     directions: int = 0
+    directions_full: int = 0
 
     @property
     def conditions_to_create(self) -> int:
@@ -702,10 +762,27 @@ class BatchPlan:
         same count the Solve screen shows. It is the only honest measure of
         cost available before the meshes exist -- panel counts and memory come
         out of the regrid and cannot be known until it has run.
+
+        Summed per step rather than multiplied out, because the heading grid is
+        not the same for every step: a full-vessel mesh solves the whole circle
+        where a half-vessel mesh solves half of it, and a grid of heels
+        contains both.
         """
         return sum(
-            len(step.band.periods) * (6 + self.directions) for step in self.steps if step.solves
+            len(step.band.periods)
+            * (6 + (self.directions_full if step.full_vessel else self.directions))
+            for step in self.steps
+            if step.solves
         )
+
+    @property
+    def solves_on_a_full_vessel(self) -> int:
+        """How many solves get the full-vessel heading grid.
+
+        Worth its own number on screen: it is the count that explains why a job
+        with three heels costs far more than three times a job with one.
+        """
+        return sum(1 for step in self.steps if step.solves and step.full_vessel)
 
     @property
     def total_steps(self) -> int:
@@ -840,9 +917,15 @@ def plan(library: Pylot, job: BatchJob, *, state: LibraryState | None = None) ->
             )
         )
 
+    # The same rule create_mesh will apply, asked here so the preview counts
+    # the problems the run will actually solve: a heeled condition gets a full
+    # vessel whatever the hull is, and a full vessel gets the whole circle.
+    symmetric_hull = library.base_shape.is_xz_symmetric
+
     steps = []
     for index in targeted:
         planned = conditions[index]
+        full_vessel = not mesh_would_be_symmetric(symmetric_hull, planned.heel)
         meshes = state.meshes_by_condition.get(planned.existing_id, [])
         for band in job.bands:
             mesh = _mesh_for(meshes, band) if job.resume else None
@@ -855,6 +938,7 @@ def plan(library: Pylot, job: BatchJob, *, state: LibraryState | None = None) ->
                 PlannedSolve(
                     condition=index,
                     band=band,
+                    full_vessel=full_vessel,
                     mesh_id=mesh.id if mesh is not None else "",
                     covered_by=covered.id if covered is not None else "",
                 )
@@ -863,7 +947,8 @@ def plan(library: Pylot, job: BatchJob, *, state: LibraryState | None = None) ->
     return BatchPlan(
         conditions=tuple(conditions),
         steps=tuple(steps),
-        directions=len(job.wave_directions),
+        directions=len(job.directions_for(is_xz_symmetric=True)),
+        directions_full=len(job.directions_for(is_xz_symmetric=False)),
     )
 
 
@@ -1182,8 +1267,25 @@ class BatchRun:
                 f"{min(band.periods):.2f} s. Those frequencies will solve, and be wrong",
             )
 
+        # Half the circle on a full vessel is a database that is wrong over the
+        # other half with nothing to show why -- mafredo does not refuse a
+        # heading past 180, it interpolates across what was never solved. The
+        # job carries a grid for each kind of mesh precisely so this does not
+        # happen; saying so here catches the job that only filled in one.
+        if not mesh.is_xz_symmetric and not spans_the_circle(
+            self._job.directions_for(is_xz_symmetric=False)
+        ):
+            report(
+                "warning",
+                f"{where}: this mesh is a full vessel and the heading grid does not go round "
+                "the compass. Nothing fills in the rest, and the delivered database will be "
+                "interpolated across the gap",
+            )
+
         try:
-            settings = self._job.settings_for(band, self._job.lid_z_for(mesh, band))
+            settings = self._job.settings_for(
+                band, self._job.lid_z_for(mesh, band), is_xz_symmetric=mesh.is_xz_symmetric
+            )
             outcome = self._solve(mesh, settings, report, where)
         except _STEP_ERRORS as exc:
             state.failures.append((where, f"{type(exc).__name__}: {exc}"))

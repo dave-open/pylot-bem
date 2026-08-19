@@ -25,7 +25,7 @@ here: it pulls in the whole of VTK, and the CLI has no use for that::
 See ``docs/api.md`` for the reference and the pylot specification's ``11_api.md`` for why.
 """
 
-from pylot_bem.api import Pylot
+from pylot_bem.api import Pylot, condition_name
 from pylot_bem.estimates import influence_matrix_bytes, shortest_reliable_period, solved_panels
 from pylot_bem.geometry import load_mesh_file
 from pylot_bem.mesh_pipeline import (
@@ -47,6 +47,7 @@ __all__ = [
     "application_point_for",
     "build_mesh",
     "check_full_mesh",
+    "condition_name",
     "influence_matrix_bytes",
     "load_mesh_file",
     "shortest_reliable_period",

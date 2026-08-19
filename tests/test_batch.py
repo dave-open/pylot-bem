@@ -186,6 +186,7 @@ def a_whole_job() -> BatchJob:
         targets=TARGET_LISTED,
         condition_ids=("design", "ballast"),
         wave_directions=(0.0, 45.0, 90.0),
+        wave_directions_full=(0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0),
         water_depth=80.0,
         g=9.80665,
         forward_speed=2.5,
@@ -650,3 +651,142 @@ def test_an_auto_lid_is_resolved_per_mesh_rather_than_per_job(library):
     assert len(outcome.results_stored) == 1
     stored = library.result(outcome.results_stored[0])
     assert stored.lid_z is None or stored.lid_z < 0, "never a lid on the free surface by accident"
+
+
+# --------------------------------------------------------------------------
+# One heading grid could never have been right
+# --------------------------------------------------------------------------
+
+HALF_CIRCLE = tuple(float(d) for d in range(0, 181, 45))    # 5
+WHOLE_CIRCLE = tuple(float(d) for d in range(0, 360, 45))   # 8
+
+
+def mixed_job(**overrides) -> BatchJob:
+    """Heels of -1, 0 and 1: a grid containing both kinds of mesh.
+
+    Which is the whole point. A symmetric hull at zero heel is meshed as a half
+    vessel whose port side mirrors its starboard side; heel it by a degree and
+    the mesh is a full vessel with nothing to mirror. Any real grid of drafts
+    and heels has both in it.
+    """
+    return BatchJob(
+        **{
+            "z_origins": (-3.0,),
+            "heels": tuple(slope_from_degrees(d) for d in (-1, 0, 1)),
+            "bands": (COARSE,),
+            "wave_directions": HALF_CIRCLE,
+            "wave_directions_full": WHOLE_CIRCLE,
+            "workers": 1,
+            **overrides,
+        }
+    )
+
+
+def test_the_heading_grid_is_derived_from_the_mesh_never_chosen():
+    """The same rule symmetry itself follows. A job that let a caller pick the
+    grid per solve would let it pick the half grid for a full vessel, which is
+    exactly the mistake two grids exist to make impossible.
+    """
+    job = mixed_job()
+
+    assert job.directions_for(is_xz_symmetric=True) == HALF_CIRCLE
+    assert job.directions_for(is_xz_symmetric=False) == WHOLE_CIRCLE
+
+
+def test_a_job_that_never_said_falls_back_to_the_one_grid_it_has():
+    """A convenience for a job with no heel in it — where it is also harmless,
+    because such a job never builds a full mesh.
+    """
+    job = BatchJob(wave_directions=HALF_CIRCLE)
+
+    assert job.directions_for(is_xz_symmetric=False) == HALF_CIRCLE
+
+
+def test_the_plan_counts_the_full_vessel_solves_apart(library):
+    """Three heels is not three times one heel: it is one half-circle solve and
+    two whole-circle ones, and a single figure would under-count the job.
+    """
+    preview = plan(library, mixed_job())
+
+    assert preview.conditions_to_create == 3
+    assert preview.solves_to_run == 3
+    assert preview.solves_on_a_full_vessel == 2, "heel != 0 gets a full mesh"
+    assert preview.directions == len(HALF_CIRCLE)
+    assert preview.directions_full == len(WHOLE_CIRCLE)
+
+    periods = len(COARSE.periods)
+    assert preview.problems == periods * (6 + 5) + 2 * periods * (6 + 8)
+
+
+def test_an_asymmetric_hull_makes_every_solve_a_full_vessel_one(tmp_path):
+    """Symmetry is derived from the hull *and* the heel, so a hull nobody
+    declared symmetric puts every condition on the full-vessel grid.
+    """
+    with Pylot.create(
+        tmp_path / "asymmetric.pylot",
+        vessel_name="Boxboat",
+        origin_description="stern, centerline, keel",
+        vertices=BOX_VERTICES,
+        faces=BOX_FACES,
+        is_xz_symmetric=False,
+    ) as library:
+        preview = plan(library, mixed_job(heels=(0.0,), z_origins=(-3.0, -2.0)))
+
+    assert preview.solves_to_run == 2
+    assert preview.solves_on_a_full_vessel == 2, "no declared symmetry, so nothing to mirror"
+
+
+def test_each_solve_is_given_the_grid_its_own_mesh_asks_for(library):
+    """End to end, on the stored results: the half-vessel result carries half
+    the circle and the full-vessel one carries all of it.
+    """
+    BatchRun(library, mixed_job()).run()
+
+    by_symmetry = {}
+    for result in library.results():
+        mesh = library.mesh(result.mesh_id)
+        by_symmetry.setdefault(mesh.is_xz_symmetric, []).append(sorted(result.wave_directions))
+
+    assert by_symmetry[True] == [list(HALF_CIRCLE)], "the unheeled condition, meshed as a half"
+    assert by_symmetry[False] == [list(WHOLE_CIRCLE)] * 2
+
+
+def test_a_full_vessel_solved_over_half_the_circle_is_warned_about(library):
+    """The one thing about a heading grid that nothing downstream detects.
+
+    mafredo does not refuse a heading past 180 — it interpolates across
+    whatever was never solved and returns a confident, wrong number. A batch
+    running overnight has no screen to look at, so this has to be in the log.
+    """
+    events = []
+    BatchRun(library, mixed_job(wave_directions_full=HALF_CIRCLE)).run(progress=events.append)
+
+    warnings = [e.message for e in events if e.kind == "warning" and "compass" in e.message]
+    assert len(warnings) == 2, "one per full-vessel solve, and none for the half-vessel one"
+
+
+def test_a_full_vessel_solved_over_the_whole_circle_is_not_warned_about(library):
+    """A warning that is always on is one nobody reads."""
+    events = []
+    BatchRun(library, mixed_job()).run(progress=events.append)
+
+    assert not [e for e in events if e.kind == "warning" and "compass" in e.message]
+
+
+def test_both_grids_survive_a_round_trip_through_a_file(tmp_path):
+    job = mixed_job()
+    assert load_job(save_job(job, tmp_path / "n")) == job
+
+
+def test_a_job_file_written_before_there_were_two_grids_still_loads(tmp_path):
+    """Fields load as defaults when absent, so an older file means what it
+    always meant: one grid, used for whatever the job meshes.
+    """
+    path = tmp_path / "old.pylotjob"
+    path.write_text(
+        '{"pylot_batch_job": 1, "wave_directions": [0, 90, 180]}', encoding="utf-8"
+    )
+    job = load_job(path)
+
+    assert job.wave_directions_full == ()
+    assert job.directions_for(is_xz_symmetric=False) == (0.0, 90.0, 180.0)

@@ -9,7 +9,7 @@ per unit length **along the axis**, not per unit horizontal distance.
 import numpy as np
 import pytest
 
-from pylot_bem.angles import degrees_from_slope, slope_from_degrees
+from pylot_bem.angles import degrees_from_slope, slope_from_degrees, spans_the_circle
 from pylot_db.frames import check_domain, decompose, transform
 
 
@@ -93,3 +93,40 @@ def test_a_slope_past_the_edge_is_clamped_rather_than_nan(slope):
     """
     assert np.isfinite(degrees_from_slope(slope))
     assert abs(degrees_from_slope(slope)) == pytest.approx(90.0)
+
+
+# --------------------------------------------------------------------------
+# Whether a heading grid goes all the way round
+# --------------------------------------------------------------------------
+
+
+def test_half_the_compass_does_not_span_it():
+    """The case the whole check exists for: 0-180 on a full vessel."""
+    assert not spans_the_circle([0.0, 45.0, 90.0, 135.0, 180.0])
+    assert not spans_the_circle(list(range(0, 181, 15)))
+
+
+def test_the_whole_compass_spans_it_without_its_wrap_around_point():
+    """A grid that reaches all the way round deliberately omits 360: it is the
+    same heading as 0, and solving both stores a duplicate column. So the test
+    is the arc covered *plus one more step*, which is how a reader counts it.
+    """
+    assert spans_the_circle(list(range(0, 360, 15)))
+    assert spans_the_circle(list(range(0, 360, 45)))
+    assert spans_the_circle([-180.0, -90.0, 0.0, 90.0]), "and it does not assume it starts at 0"
+
+
+def test_two_opposite_headings_span_it_coarsely_and_that_is_the_honest_answer():
+    """``[0, 180]`` has a 180-degree gap either way round, so it *is* uniform
+    over the circle — a terrible grid, but not a one-sided one. This function
+    answers coverage, not resolution, and pinning the surprising case keeps a
+    later reader from 'fixing' it into something that reports a lopsided grid
+    and a symmetric one the same way.
+    """
+    assert spans_the_circle([0.0, 180.0])
+    assert not spans_the_circle([0.0, 90.0, 180.0]), "270 is never solved"
+
+
+def test_a_grid_too_short_to_have_a_step_spans_nothing():
+    assert not spans_the_circle([0.0])
+    assert not spans_the_circle([])

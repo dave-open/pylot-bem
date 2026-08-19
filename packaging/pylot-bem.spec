@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for the standalone application (docs/README.md).
 
-    uv run pyinstaller packaging/pylot-app.spec --noconfirm
+    uv run pyinstaller packaging/pylot-bem.spec --noconfirm
 
 Produces ``dist/pylot/pylot.exe`` -- a folder build (COLLECT), not one file:
 onefile self-extracts to a temp dir on every launch, which is a slow start

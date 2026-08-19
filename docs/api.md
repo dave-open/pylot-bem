@@ -113,6 +113,12 @@ Add a floating condition and **derive its application point** from the submerged
 
 Slopes, not degrees. Raises `MeshPipelineError` if nothing is submerged.
 
+A blank `label` becomes `condition_name(z_origin, heel, trim)` — `z-4.70_h-1.00_t2.00`: metres, then two angles in **degrees**, two decimals each, every number carrying the letter of what it is. The alternative shown everywhere a condition appears is its generated id, and a batch of seven hundred uuids is unreadable. It is a **label and never an id**: ids are opaque and nothing may parse one (ADR-4), while a label is display only, parsed by nothing, and correctable afterwards.
+
+### `condition_name(z_origin, heel, trim) -> str`
+
+That derivation on its own, for anyone building labels to match. The letters are for the eye — nothing parses this, here or anywhere.
+
 ### `create_mesh(condition, *, pct=2.0, iterations=20, mesh_id=None) -> CalculationMesh`
 
 Build a calculation mesh at a condition and store it. `condition` may be the object or its id.
@@ -209,6 +215,14 @@ conditions the bands run on:
 | `TARGET_ALL` | that grid *and* every other condition in the library |
 | `TARGET_LISTED` | `condition_ids`, and nothing else |
 
+**Two heading grids, and which one a solve gets is derived from its mesh.**
+`wave_directions` is for a half-vessel mesh, `wave_directions_full` for a full
+one; empty falls back to the first. A symmetric hull at zero heel mirrors its
+port side, so 0–180 is exact; heel it and the mesh is a full vessel needing the
+whole circle. A grid of heels contains both, so one setting could never be right
+for a whole job — and `directions_for(is_xz_symmetric=...)` is the only way to
+ask, for the same reason symmetry itself is derived and never set.
+
 `lid` is a **mode** (`"none"`, `"surface"`, `"below"`, `"auto"`) rather than a
 position, because `auto` has no answer until a mesh exists — which in a batch is
 halfway through the run. It is resolved per mesh and per band. The CLI refuses
@@ -231,8 +245,12 @@ rounded so `-4.6000000000005` never reaches a `z_origin` column.
 
 Walks the job against the library and changes nothing. Reports
 `conditions_to_create` / `conditions_existing`, `meshes_to_build` /
-`meshes_reused`, `solves_to_run` / `solves_skipped`, `problems` and
-`total_steps`.
+`meshes_reused`, `solves_to_run` / `solves_skipped` / `solves_on_a_full_vessel`,
+`problems`, `directions` / `directions_full` and `total_steps`.
+
+`problems` is summed per step, not multiplied out: a full-vessel solve carries
+more headings than a half-vessel one, and a job with three heels contains both.
+A single figure would under-count the typical job by nearly 40%.
 
 **There is no memory or panel estimate**, deliberately: those come out of a
 regrid that has not run, and an invented figure beside real ones is
@@ -360,8 +378,8 @@ Adding to this module? Spec 07 §3.2: import from `vtkmodules.*`, never `import 
 ## The application
 
 ```bash
-uv run pylot-app                 # or: uv run python -m pylot_bem.app
-uv run pylot-app tanker.pylot    # opening a library at startup
+uv run pylot-bem                 # or: uv run python -m pylot_bem.app
+uv run pylot-bem tanker.pylot    # opening a library at startup
 ```
 
 A window for building and inspecting libraries: a tree of **library → condition → mesh → result**, a 3D view, property panes, and tabs for Results, Databases, Inspect, Match and Validation. See the `pylot` specification, `06_ui_and_integration.md` and `09_ui_options.md`.
@@ -453,7 +471,7 @@ Three numbers to look at *before* starting a run that takes minutes.
 |---|---|
 | `LibraryError` | The file is not a library, is from a newer schema, an id is unknown, or a deletion would orphan something |
 | `AssemblyError` | A key is unknown, in conflict, or incomplete |
-| `MeshPipelineError` | A half mesh, nothing submerged, or a regrid that produced no faces |
+| `MeshPipelineError` | A half mesh, nothing submerged, a regrid that produced no faces, or a hull whose topology defeats one of the mesh filters — most often *not two manifold*. A `PyMeshLabException` never escapes: nothing above this layer has a reason to know a mesh library is underneath, and one that got out reached the application as a traceback on a stderr a windowed build does not have |
 | `SolverError` | The excitation identity failed, the problems are not frequency-major, or the dataset disagrees with the settings |
 | `ValueError` | Slopes outside the valid domain; a non-positive `scale` |
 | `BridgeError` | A dataset the bridge cannot convert, or a non-positive `rho` |

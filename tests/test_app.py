@@ -26,14 +26,19 @@ from hull import BOX_FACES, BOX_VERTICES
 from pylot_db.probes import probes_for_condition
 from pylot_db.storage import Library, LibraryError
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialogButtonBox, QMessageBox
+from PySide6.QtWidgets import QDialogButtonBox, QFileDialog, QGroupBox, QMessageBox, QToolBox
 
 from pylot_bem.api import Pylot
 from pylot_bem.app.batch import BatchDialog
 from pylot_bem.app.dialogs import LID_AUTO, LID_BELOW, CreateMeshDialog, NewConditionDialog, SolveDialog
-from pylot_bem.app.formatting import degrees_from_slope, period_from_omega, slope_from_degrees
+from pylot_bem.app.formatting import (
+    INCOMPLETE,
+    degrees_from_slope,
+    period_from_omega,
+    slope_from_degrees,
+)
 from pylot_bem.app.window import MainWindow
-from pylot_bem.batch import Band, BatchJob, plan, save_job
+from pylot_bem.batch import Band, BatchJob, load_job, plan, save_job
 from pylot_bem.solver import SolveSettings
 
 COARSE = {"pct": 20.0, "iterations": 5}
@@ -794,6 +799,108 @@ def test_the_new_condition_dialog_derives_as_it_is_typed(window):
     dialog.close()
 
 
+def test_a_hull_the_mesh_library_refuses_is_reported_on_screen(qapp, tmp_path, isolated_settings):
+    """Spec 06 section 7's rule, on the one path that used to escape it.
+
+    A hull whose topology defeats the waterline cut made pymeshlab raise
+    something no caller catches, so `New condition…` raised inside its own
+    constructor and printed a traceback to a stderr a windowed build does not
+    have. From the user's side the menu entry did nothing at all.
+
+    The library still opens, because it is a perfectly good library — what is
+    wrong is the geometry inside it, and that is what has to be legible.
+    """
+    path = tmp_path / "non-manifold.pylot"
+    # One triangle hanging off an existing edge: that edge now has three
+    # incident faces, which is what pymeshlab means by "not two manifold".
+    Pylot.create(
+        path,
+        vessel_name="Broken",
+        origin_description="stern, centerline, keel",
+        vertices=np.vstack([BOX_VERTICES, [[30.0, 0.0, 20.0]]]),
+        faces=np.vstack([BOX_FACES, [[0, 1, 8]]]),
+        is_xz_symmetric=True,
+    ).close()
+
+    main = MainWindow(settings=isolated_settings)
+    main.open_path(path)
+    dialog = NewConditionDialog(main.library, main)
+
+    shown = dialog.ui.lblProblem.text()
+    assert "not two manifold" in shown, "the reason has to reach the screen"
+    assert "two-manifold surface" in shown, "and so does what to do about it"
+    assert not dialog.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).isEnabled(), (
+        "and it must not offer to create a condition it cannot compute"
+    )
+    dialog.close()
+    main.close()
+
+
+def test_the_solve_screen_opens_on_a_useful_period_grid(window):
+    """A default nobody changes is the default everybody solves, so it has to
+    be a grid worth having rather than a placeholder: 1 to 15 s in half-second
+    steps, which is 29 frequencies covering the range a vessel responds in.
+    """
+    dialog = SolveDialog(window.library, window.library.mesh("design-mesh"), window)
+
+    assert dialog.ui.spinPeriodFrom.value() == pytest.approx(1.0)
+    assert dialog.ui.spinPeriodTo.value() == pytest.approx(15.0)
+    assert dialog.ui.spinPeriodStep.value() == pytest.approx(0.5)
+    assert len(dialog.periods()) == 29
+    assert dialog.periods()[-1] == pytest.approx(15.0), "the end is on the grid, not past it"
+    dialog.close()
+
+
+def test_the_new_condition_dialog_offers_the_name_it_would_give(window):
+    """Shown as the field's placeholder rather than typed into it: a value in
+    an editable box is one the user has to decide about, and this one is a
+    default they can simply accept.
+    """
+    dialog = NewConditionDialog(window.library, window)
+    dialog.ui.spinZOrigin.setValue(-4.7)
+    dialog.ui.spinHeel.setValue(-1.0)
+    dialog.ui.spinTrim.setValue(2.0)
+
+    assert dialog.ui.editLabel.placeholderText() == "z-4.70_h-1.00_t2.00"
+    assert dialog.values()["label"] == "", "blank, so the API derives it"
+
+    dialog.ui.spinZOrigin.setValue(-3.0)
+    assert dialog.ui.editLabel.placeholderText() == "z-3.00_h-1.00_t2.00", "and it follows the fields"
+    dialog.close()
+
+
+def test_a_condition_made_from_the_dialog_carries_that_name(window, monkeypatch):
+    """End to end, on what the tree then shows."""
+
+    class Named(NewConditionDialog):
+        def exec(self):
+            self.ui.spinZOrigin.setValue(-5.5)
+            self.ui.spinTrim.setValue(1.0)
+            self.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
+            return self.result()
+
+    monkeypatch.setattr("pylot_bem.app.window.NewConditionDialog", Named)
+    window.new_condition()
+
+    made = next(c for c in window.library.conditions() if c.z_origin == pytest.approx(-5.5))
+    assert made.label == "z-5.50_h0.00_t1.00"
+    assert any("z-5.50_h0.00_t1.00" in row for row in tree_names(window))
+
+
+def tree_names(window):
+    """The first column of every row, which is what a person reads."""
+    names = []
+
+    def walk(item):
+        names.append(item.text(0))
+        for i in range(item.childCount()):
+            walk(item.child(i))
+
+    for i in range(window.tree.topLevelItemCount()):
+        walk(window.tree.topLevelItem(i))
+    return names
+
+
 def test_the_new_condition_dialog_refuses_a_condition_out_of_the_water(window):
     dialog = NewConditionDialog(window.library, window)
     dialog.ui.spinZOrigin.setValue(5.0)
@@ -1152,11 +1259,21 @@ def test_the_batch_screen_shows_the_cost_before_start(window):
     assert "705 conditions" in dialog.ui.lblConditionGrid.text()
     assert "1410" in dialog.ui.lblPlanMeshes.text()
     assert "1410" in dialog.ui.lblPlanSolves.text()
-    # 705 conditions x 11 frequencies x (6 dofs + 13 directions), grouped the
-    # way the Solve screen groups a single mesh. 0 to 180 inclusive is 13
-    # headings, and it keeps all of them -- only a grid that comes back round
-    # to where it started drops its last point.
-    assert f"{705 * 11 * 19:,}" in dialog.ui.lblPlanProblems.text()
+
+    # The heeled conditions are two thirds of the grid, they are meshed as full
+    # vessels, and a full vessel solves the whole circle. So the cost is not one
+    # multiplication: it is the half-vessel solves at 13 headings plus the
+    # full-vessel ones at 24, and reporting a single figure would have
+    # under-counted this job by nearly 40%.
+    #
+    # 0 to 180 inclusive is 13 headings and keeps all of them; 0 to 360 is 24,
+    # because a grid that comes back round to where it started drops its last
+    # point.
+    unheeled, heeled, periods = 47 * 1 * 5, 47 * 2 * 5, 4 + 7
+    expected = unheeled * periods * (6 + 13) + heeled * periods * (6 + 24)
+    assert f"{expected:,}" in dialog.ui.lblPlanProblems.text()
+    assert f"{heeled * 2} on a full vessel" in dialog.ui.lblPlanSolves.text()
+    assert "13 headings on a half vessel, 24 on a full one" in dialog.ui.lblPlanProblems.text()
 
     # Two of the fixture's conditions sit on this grid, so they are reused
     # rather than added -- which is the resume rule, showing up in the preview
@@ -1172,31 +1289,58 @@ def test_the_batch_screen_lays_out_without_drawing_over_itself(window, qapp):
     """A wrapped label reports a minimum height only once it has a width to
     wrap against, so a dialog full of them opens shorter than the sum of what
     is in it and the group boxes draw on top of each other. SolveDialog carries
-    the same fix; this screen is half again as tall, so it also has to stay on
-    the screen with its buttons reachable.
+    the same fix; this screen also has to stay on the screen with its buttons
+    reachable.
+
+    Compared **per toolbox page**, and in that page's own coordinates. Groups on
+    two different pages are never on screen together, and their geometries are
+    page-local — so comparing every group against every other one reports an
+    overlap between things that cannot be seen at the same time.
     """
     dialog = batch_dialog(window)
     dialog.show()
     qapp.processEvents()
 
-    groups = [
-        dialog.ui.groupConditions,
-        dialog.ui.groupBands,
-        dialog.ui.groupDirections,
-        dialog.ui.groupPhysical,
-        dialog.ui.groupLid,
-        dialog.ui.groupParallel,
-        dialog.ui.groupPlan,
-        dialog.ui.groupRun,
-    ]
-    for first, second in [(a, b) for a in groups for b in groups if a is not b]:
-        assert not first.geometry().intersects(second.geometry()), (
-            f"{first.objectName()} and {second.objectName()} overlap"
-        )
+    toolbox = dialog.findChild(QToolBox)
+    assert toolbox is not None and toolbox.count() > 1, "this test is about a paged layout"
+
+    for index in range(toolbox.count()):
+        toolbox.setCurrentIndex(index)
+        qapp.processEvents()
+        page = toolbox.widget(index)
+        groups = page.findChildren(QGroupBox)
+        assert groups, f"page {toolbox.itemText(index)!r} has nothing on it"
+
+        for first, second in [(a, b) for a in groups for b in groups if a is not b]:
+            # Only groups that are siblings on the same surface: a group nested
+            # inside another legitimately sits within it.
+            if first.parent() is not second.parent():
+                continue
+            assert not first.geometry().intersects(second.geometry()), (
+                f"{first.objectName()} and {second.objectName()} overlap on "
+                f"page {toolbox.itemText(index)!r}"
+            )
 
     for button in (dialog.ui.btnStart, dialog.ui.btnStop, dialog.ui.btnKill, dialog.ui.btnClose):
         bottom = button.mapTo(dialog, button.rect().bottomLeft()).y()
         assert bottom <= dialog.height(), f"{button.objectName()} is below the bottom edge"
+    dialog.close()
+
+
+def test_every_page_of_the_batch_screen_is_reachable(window, qapp):
+    """The settings are on five pages now, and every one of them has to be
+    selectable — a page nothing can open is a setting nobody can change.
+    """
+    dialog = batch_dialog(window)
+    dialog.show()
+    qapp.processEvents()
+
+    toolbox = dialog.findChild(QToolBox)
+    for index in range(toolbox.count()):
+        assert toolbox.isItemEnabled(index), f"page {toolbox.itemText(index)!r} cannot be opened"
+        toolbox.setCurrentIndex(index)
+        qapp.processEvents()
+        assert toolbox.currentIndex() == index
     dialog.close()
 
 
@@ -1222,18 +1366,52 @@ def test_the_batch_screen_says_when_there_is_nothing_to_do(window):
     dialog.close()
 
 
-def test_the_batch_screen_says_whether_half_the_circle_is_enough(window):
-    """Getting this wrong is invisible: mafredo interpolates across the
-    unsolved half and answers confidently. A heeled condition gets a full mesh,
-    which has no half to mirror -- so the answer depends on the job, not on the
-    hull alone.
+def test_the_batch_screen_keeps_a_heading_grid_for_each_kind_of_mesh(window):
+    """One grid could never have been right for a job that heels a hull.
+
+    A symmetric hull at zero heel is meshed as a half vessel and half the
+    circle is exact; heel it and the mesh is a full vessel with nothing to
+    mirror. A grid of heels contains both, so the screen carries both — and
+    which one a solve gets is derived from its mesh, never chosen.
     """
     dialog = batch_dialog(window)
+    dialog.ui.editBands.setPlainText("20 -> 10")
     dialog.ui.editHeels.setText("0")
+
     assert "mirror image" in dialog.ui.lblDirList.text()
+    assert "unused" in dialog.ui.lblDirFullList.text(), (
+        "with no heel in the job, nothing is meshed as a full vessel"
+    )
 
     dialog.ui.editHeels.setText("0, 5")
-    assert "whole circle" in dialog.ui.lblDirList.text()
+    assert "mirror image" in dialog.ui.lblDirList.text(), "the half grid is unchanged"
+    assert "whole circle" in dialog.ui.lblDirFullList.text()
+    assert dialog.job().wave_directions != dialog.job().wave_directions_full
+    dialog.close()
+
+
+def test_the_batch_screen_warns_when_the_full_vessel_grid_stops_short(window):
+    """The one setting here where being wrong is invisible.
+
+    mafredo does not refuse a heading past 180 — it interpolates across
+    whatever was never solved and returns a confident, wrong number. Nothing
+    downstream detects it, so this screen has to.
+    """
+    dialog = batch_dialog(window)
+    dialog.ui.editBands.setPlainText("20 -> 10")
+    dialog.ui.editHeels.setText("0, 5")
+    assert "whole circle" in dialog.ui.lblDirFullList.text()
+
+    dialog.ui.spinDirFullTo.setValue(180.0)
+
+    shown = dialog.ui.lblDirFullList.text()
+    assert "interpolated across the gap" in shown
+    assert INCOMPLETE in shown, "and it has to look like a warning, not a footnote"
+
+    # Not shown when the job never builds a full vessel — a warning that is
+    # always on is one nobody reads.
+    dialog.ui.editHeels.setText("0")
+    assert "interpolated across the gap" not in dialog.ui.lblDirFullList.text()
     dialog.close()
 
 
@@ -1342,6 +1520,55 @@ def test_a_batch_step_that_fails_is_logged_and_the_rest_still_runs(window, qapp)
     dialog.close()
 
 
+def test_every_button_on_the_batch_screen_is_wired_to_something_it_can_call(
+    window, tmp_path, monkeypatch
+):
+    """Clicked, not called. This is the test that was missing.
+
+    ``clicked`` carries the button's ``checked`` state, and PySide fills a
+    slot's first optional parameter with it — so ``save_job_to_file(path=None)``
+    connected directly received ``False`` as the path, raised, and printed the
+    traceback to a stderr the packaged application does not have. Every
+    assertion here passed while Save did nothing, because every one of them
+    called the method instead of pressing the button.
+    """
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path / "clicked.pylotjob"), "")
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", lambda *a, **k: (str(tmp_path / "clicked.pylotjob"), "")
+    )
+    dialog = batch_dialog(window)
+    dialog.ui.editBands.setPlainText("20 -> 10")
+
+    dialog.ui.btnSaveJob.click()
+    assert (tmp_path / "clicked.pylotjob").exists(), "Save did nothing"
+    assert load_job(tmp_path / "clicked.pylotjob") == dialog.job()
+
+    dialog.ui.editBands.setPlainText("30 -> 14")
+    assert dialog.job().bands[0].pct == 30.0
+
+    dialog.ui.btnLoadJob.click()
+    assert dialog.job().bands[0].pct == 20.0, "Load did nothing"
+    dialog.close()
+
+
+def test_cancelling_the_file_dialog_writes_nothing(window, monkeypatch):
+    """Qt returns an empty path for Cancel, not an exception."""
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: ("", ""))
+
+    dialog = batch_dialog(window)
+    before = dialog.job()
+
+    dialog.ui.btnSaveJob.click()
+    dialog.ui.btnLoadJob.click()
+
+    assert dialog.job() == before
+    assert "Job saved" not in dialog.ui.textLog.toPlainText()
+    dialog.close()
+
+
 def test_a_job_saved_from_the_screen_loads_back_onto_it(window, tmp_path):
     """The screen and the file agree, both ways.
 
@@ -1363,12 +1590,12 @@ def test_a_job_saved_from_the_screen_loads_back_onto_it(window, tmp_path):
     dialog.ui.chkResume.setChecked(False)
     saved = dialog.job()
 
-    path = dialog.save_job_to_file(tmp_path / "night")
+    path = dialog.save_job_to_file(path=tmp_path / "night")
     assert path.name == "night.pylotjob"
 
     fresh = batch_dialog(window)
     assert fresh.job() != saved, "otherwise this passes without loading anything"
-    assert fresh.load_job_from_file(path) is not None
+    assert fresh.load_job_from_file(path=path) is not None
     assert fresh.job() == saved
     assert "-0.35" in fresh.ui.lblLidInfo.text(), "and the derived readouts followed"
 
@@ -1391,7 +1618,7 @@ def test_loading_a_job_this_screen_cannot_show_exactly_says_which_part(window, t
     )
 
     dialog = batch_dialog(window)
-    dialog.load_job_from_file(tmp_path / "odd.pylotjob")
+    dialog.load_job_from_file(path=tmp_path / "odd.pylotjob")
 
     log = dialog.ui.textLog.toPlainText()
     assert "not an evenly spaced range" in log
@@ -1417,7 +1644,7 @@ def test_loading_a_job_that_names_conditions_from_another_library_says_so(
     )
 
     dialog = batch_dialog(window)
-    dialog.load_job_from_file(tmp_path / "listed.pylotjob")
+    dialog.load_job_from_file(path=tmp_path / "listed.pylotjob")
 
     assert "not in this library" in dialog.ui.textLog.toPlainText()
     assert dialog.job().condition_ids == ("design",)
@@ -1432,7 +1659,7 @@ def test_loading_the_library_instead_of_a_job_is_refused(window, path, monkeypat
     dialog = batch_dialog(window)
     before = dialog.job()
 
-    assert dialog.load_job_from_file(path) is None
+    assert dialog.load_job_from_file(path=path) is None
     assert said and "is a pylot library, not a batch job" in said[0], said
     assert dialog.job() == before, "a refused load must leave the screen alone"
     dialog.close()
@@ -2508,3 +2735,51 @@ def test_recent_files_persist_across_windows_through_the_real_settings_backend(q
     assert second._recent_files() == [str(path)]
     assert second.recent_menu.actions()[0].text() == str(path)
     second.close()
+
+
+def test_the_solve_screen_warns_when_a_full_vessel_gets_half_the_circle(window, monkeypatch):
+    """The default is right; changing it is where this bites.
+
+    An asymmetric mesh opens at 0-360, so nobody meets this by accident. Set it
+    back to 180 and the old note still said "the hull is not symmetric here, so
+    the whole circle is solved" — it read the mesh and never looked at the grid.
+    A full vessel has no half to mirror, and mafredo does not refuse a heading
+    past 180: it interpolates across what was never solved and answers
+    confidently. Nothing downstream detects it.
+    """
+
+    class Full(CreateMeshDialog):
+        def exec(self):
+            self.ui.editId.setText("heeled-mesh")
+            self.ui.spinPct.setValue(25.0)
+            self.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
+            return self.result()
+
+    monkeypatch.setattr("pylot_bem.app.window.CreateMeshDialog", Full)
+    window.create_mesh("loaded")
+    mesh = window.library.mesh("heeled-mesh")
+    assert not mesh.is_xz_symmetric, "the premise: this is a full vessel"
+
+    dialog = SolveDialog(window.library, mesh, window)
+    assert "whole circle is solved" in dialog.ui.lblDirList.text(), "the 0-360 default is fine"
+
+    dialog.ui.spinDirTo.setValue(180.0)
+
+    shown = dialog.ui.lblDirList.text()
+    assert "full vessel" in shown
+    assert "interpolated across the gap" in shown
+    assert INCOMPLETE in shown, "and it has to look like a warning"
+    dialog.close()
+
+
+def test_the_solve_screen_says_nothing_of_the_sort_for_a_half_vessel(window):
+    """0-180 on a symmetric mesh is exact, not a compromise — the port half is
+    the mirror image and is filled in on delivery.
+    """
+    dialog = SolveDialog(window.library, window.library.mesh("design-mesh"), window)
+    dialog.ui.spinDirTo.setValue(180.0)
+
+    shown = dialog.ui.lblDirList.text()
+    assert "mirror image" in shown
+    assert "interpolated" not in shown
+    dialog.close()

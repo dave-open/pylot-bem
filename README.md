@@ -24,7 +24,7 @@ to limit the python environment for the consumer side, the pylot package is spli
 
 ## run
 
-`uvx --from pylot-bem pylot-app`
+`uvx pylot-bem`
 
 # pylot-bem
 
@@ -61,7 +61,7 @@ this package depends on and which needs no solver.
 ## The application
 
 ```bash
-uv run pylot-app
+uv run pylot-bem
 ```
 
 ![The pylot application](docs/images/main-window.png)
@@ -96,7 +96,7 @@ without a window.
 
 ```bash
 uv sync --group build
-uv run pyinstaller packaging/pylot-app.spec --noconfirm
+uv run pyinstaller packaging/pylot-bem.spec --noconfirm
 ```
 
 Produces `dist/pylot/pylot.exe` — no Python install required on the target

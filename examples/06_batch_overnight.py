@@ -60,7 +60,17 @@ BANDS = """
 15 -> 24
 """
 
-DIRECTIONS = (0.0, 90.0, 180.0)  # degrees, direction of travel
+# Two heading grids, and which one a solve gets is derived from its mesh. A
+# symmetric hull at zero heel is meshed as a half vessel whose port side mirrors
+# its starboard side, so half the circle is exact and the rest is filled in on
+# delivery. Heel that same hull and the mesh is a full vessel with nothing to
+# mirror -- it needs the whole circle, or the delivered database is interpolated
+# across what was never solved and is wrong there with nothing to show why.
+#
+# HEELS below is (0.0,), so every condition here is a half vessel and the second
+# grid goes unused. Add a heel and watch the problem count jump.
+DIRECTIONS = (0.0, 90.0, 180.0)                      # degrees, direction of travel
+DIRECTIONS_FULL = (0.0, 90.0, 180.0, 270.0)          # for a full-vessel mesh
 
 # --------------------------------------------------------------------------
 
@@ -104,6 +114,7 @@ def main() -> None:
         # iterations is a knob on the regrid, one value for the whole table.
         bands=parse_bands(BANDS, iterations=5),
         wave_directions=DIRECTIONS,
+        wave_directions_full=DIRECTIONS_FULL,
         workers=2,
     )
 
@@ -120,6 +131,9 @@ def main() -> None:
     print(f"meshes        {preview.meshes_to_build} to build, {preview.meshes_reused} reused")
     print(f"solves        {preview.solves_to_run} to run, {preview.solves_skipped} already covered")
     print(f"problems      {preview.problems} -- six radiation per frequency, plus one per direction")
+    print(f"              {preview.directions} headings on a half vessel, "
+          f"{preview.directions_full} on a full one; "
+          f"{preview.solves_on_a_full_vessel} of {preview.solves_to_run} solves are full-vessel")
 
     # 3. Run it -----------------------------------------------------------
     #

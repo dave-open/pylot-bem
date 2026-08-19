@@ -16,261 +16,33 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-    QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QLabel, QLineEdit, QPlainTextEdit, QProgressBar,
-    QPushButton, QSizePolicy, QSpacerItem, QSpinBox,
-    QVBoxLayout, QWidget)
+    QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
+    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QProgressBar, QPushButton, QSizePolicy, QSpacerItem,
+    QSpinBox, QToolBox, QVBoxLayout, QWidget)
 
 class Ui_DlgBatch(object):
     def setupUi(self, DlgBatch):
         if not DlgBatch.objectName():
             DlgBatch.setObjectName(u"DlgBatch")
-        DlgBatch.resize(1020, 820)
-        self.root = QVBoxLayout(DlgBatch)
-        self.root.setObjectName(u"root")
+        DlgBatch.resize(1507, 1146)
+        self.verticalLayout_4 = QVBoxLayout(DlgBatch)
+        self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.lblHeading = QLabel(DlgBatch)
         self.lblHeading.setObjectName(u"lblHeading")
+        self.lblHeading.setTextFormat(Qt.TextFormat.RichText)
         self.lblHeading.setWordWrap(True)
-        self.lblHeading.setTextFormat(Qt.RichText)
 
-        self.root.addWidget(self.lblHeading)
-
-        self.layoutColumns = QHBoxLayout()
-        self.layoutColumns.setObjectName(u"layoutColumns")
-        self.layoutLeft = QVBoxLayout()
-        self.layoutLeft.setObjectName(u"layoutLeft")
-        self.groupConditions = QGroupBox(DlgBatch)
-        self.groupConditions.setObjectName(u"groupConditions")
-        self.formConditions = QFormLayout(self.groupConditions)
-        self.formConditions.setObjectName(u"formConditions")
-        self.chkCreateConditions = QCheckBox(self.groupConditions)
-        self.chkCreateConditions.setObjectName(u"chkCreateConditions")
-        self.chkCreateConditions.setChecked(True)
-
-        self.formConditions.setWidget(0, QFormLayout.ItemRole.SpanningRole, self.chkCreateConditions)
-
-        self.lblZCaption = QLabel(self.groupConditions)
-        self.lblZCaption.setObjectName(u"lblZCaption")
-
-        self.formConditions.setWidget(1, QFormLayout.ItemRole.LabelRole, self.lblZCaption)
-
-        self.layoutZ = QHBoxLayout()
-        self.layoutZ.setObjectName(u"layoutZ")
-        self.spinZFrom = QDoubleSpinBox(self.groupConditions)
-        self.spinZFrom.setObjectName(u"spinZFrom")
-        self.spinZFrom.setDecimals(3)
-        self.spinZFrom.setMinimum(-999.000000000000000)
-        self.spinZFrom.setMaximum(999.000000000000000)
-        self.spinZFrom.setSingleStep(0.100000000000000)
-        self.spinZFrom.setValue(-4.700000000000000)
-
-        self.layoutZ.addWidget(self.spinZFrom)
-
-        self.lblZTo = QLabel(self.groupConditions)
-        self.lblZTo.setObjectName(u"lblZTo")
-
-        self.layoutZ.addWidget(self.lblZTo)
-
-        self.spinZTo = QDoubleSpinBox(self.groupConditions)
-        self.spinZTo.setObjectName(u"spinZTo")
-        self.spinZTo.setDecimals(3)
-        self.spinZTo.setMinimum(-999.000000000000000)
-        self.spinZTo.setMaximum(999.000000000000000)
-        self.spinZTo.setSingleStep(0.100000000000000)
-        self.spinZTo.setValue(-0.100000000000000)
-
-        self.layoutZ.addWidget(self.spinZTo)
-
-        self.lblZStep = QLabel(self.groupConditions)
-        self.lblZStep.setObjectName(u"lblZStep")
-
-        self.layoutZ.addWidget(self.lblZStep)
-
-        self.spinZStep = QDoubleSpinBox(self.groupConditions)
-        self.spinZStep.setObjectName(u"spinZStep")
-        self.spinZStep.setDecimals(3)
-        self.spinZStep.setMinimum(0.001000000000000)
-        self.spinZStep.setMaximum(999.000000000000000)
-        self.spinZStep.setSingleStep(0.100000000000000)
-        self.spinZStep.setValue(0.100000000000000)
-
-        self.layoutZ.addWidget(self.spinZStep)
-
-
-        self.formConditions.setLayout(1, QFormLayout.ItemRole.FieldRole, self.layoutZ)
-
-        self.lblZHint = QLabel(self.groupConditions)
-        self.lblZHint.setObjectName(u"lblZHint")
-        self.lblZHint.setWordWrap(True)
-
-        self.formConditions.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.lblZHint)
-
-        self.lblHeelCaption = QLabel(self.groupConditions)
-        self.lblHeelCaption.setObjectName(u"lblHeelCaption")
-
-        self.formConditions.setWidget(3, QFormLayout.ItemRole.LabelRole, self.lblHeelCaption)
-
-        self.editHeels = QLineEdit(self.groupConditions)
-        self.editHeels.setObjectName(u"editHeels")
-
-        self.formConditions.setWidget(3, QFormLayout.ItemRole.FieldRole, self.editHeels)
-
-        self.lblTrimCaption = QLabel(self.groupConditions)
-        self.lblTrimCaption.setObjectName(u"lblTrimCaption")
-
-        self.formConditions.setWidget(4, QFormLayout.ItemRole.LabelRole, self.lblTrimCaption)
-
-        self.editTrims = QLineEdit(self.groupConditions)
-        self.editTrims.setObjectName(u"editTrims")
-
-        self.formConditions.setWidget(4, QFormLayout.ItemRole.FieldRole, self.editTrims)
-
-        self.lblAnglesHint = QLabel(self.groupConditions)
-        self.lblAnglesHint.setObjectName(u"lblAnglesHint")
-        self.lblAnglesHint.setWordWrap(True)
-
-        self.formConditions.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.lblAnglesHint)
-
-        self.lblConditionGrid = QLabel(self.groupConditions)
-        self.lblConditionGrid.setObjectName(u"lblConditionGrid")
-        self.lblConditionGrid.setWordWrap(True)
-        self.lblConditionGrid.setTextFormat(Qt.RichText)
-
-        self.formConditions.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.lblConditionGrid)
-
-
-        self.layoutLeft.addWidget(self.groupConditions)
-
-        self.groupBands = QGroupBox(DlgBatch)
-        self.groupBands.setObjectName(u"groupBands")
-        self.layoutBands = QVBoxLayout(self.groupBands)
-        self.layoutBands.setObjectName(u"layoutBands")
-        self.lblBandsCaption = QLabel(self.groupBands)
-        self.lblBandsCaption.setObjectName(u"lblBandsCaption")
-        self.lblBandsCaption.setTextFormat(Qt.RichText)
-
-        self.layoutBands.addWidget(self.lblBandsCaption)
-
-        self.editBands = QPlainTextEdit(self.groupBands)
-        self.editBands.setObjectName(u"editBands")
-        self.editBands.setMinimumSize(QSize(0, 90))
-        self.editBands.setMaximumSize(QSize(16777215, 140))
-
-        self.layoutBands.addWidget(self.editBands)
-
-        self.lblBandsHint = QLabel(self.groupBands)
-        self.lblBandsHint.setObjectName(u"lblBandsHint")
-        self.lblBandsHint.setWordWrap(True)
-
-        self.layoutBands.addWidget(self.lblBandsHint)
-
-        self.lblBands = QLabel(self.groupBands)
-        self.lblBands.setObjectName(u"lblBands")
-        self.lblBands.setWordWrap(True)
-        self.lblBands.setTextFormat(Qt.RichText)
-
-        self.layoutBands.addWidget(self.lblBands)
-
-        self.formBands = QFormLayout()
-        self.formBands.setObjectName(u"formBands")
-        self.lblIterationsCaption = QLabel(self.groupBands)
-        self.lblIterationsCaption.setObjectName(u"lblIterationsCaption")
-
-        self.formBands.setWidget(0, QFormLayout.ItemRole.LabelRole, self.lblIterationsCaption)
-
-        self.spinIterations = QSpinBox(self.groupBands)
-        self.spinIterations.setObjectName(u"spinIterations")
-        self.spinIterations.setMinimum(1)
-        self.spinIterations.setMaximum(500)
-        self.spinIterations.setValue(20)
-
-        self.formBands.setWidget(0, QFormLayout.ItemRole.FieldRole, self.spinIterations)
-
-        self.lblTargetsCaption = QLabel(self.groupBands)
-        self.lblTargetsCaption.setObjectName(u"lblTargetsCaption")
-
-        self.formBands.setWidget(1, QFormLayout.ItemRole.LabelRole, self.lblTargetsCaption)
-
-        self.comboTargets = QComboBox(self.groupBands)
-        self.comboTargets.setObjectName(u"comboTargets")
-
-        self.formBands.setWidget(1, QFormLayout.ItemRole.FieldRole, self.comboTargets)
-
-
-        self.layoutBands.addLayout(self.formBands)
-
-        self.lblTargets = QLabel(self.groupBands)
-        self.lblTargets.setObjectName(u"lblTargets")
-        self.lblTargets.setWordWrap(True)
-        self.lblTargets.setTextFormat(Qt.RichText)
-
-        self.layoutBands.addWidget(self.lblTargets)
-
-
-        self.layoutLeft.addWidget(self.groupBands)
-
-
-        self.layoutColumns.addLayout(self.layoutLeft)
-
-        self.layoutRight = QVBoxLayout()
-        self.layoutRight.setObjectName(u"layoutRight")
-        self.groupDirections = QGroupBox(DlgBatch)
-        self.groupDirections.setObjectName(u"groupDirections")
-        self.formDirections = QFormLayout(self.groupDirections)
-        self.formDirections.setObjectName(u"formDirections")
-        self.lblDirFromCaption = QLabel(self.groupDirections)
-        self.lblDirFromCaption.setObjectName(u"lblDirFromCaption")
-
-        self.formDirections.setWidget(0, QFormLayout.ItemRole.LabelRole, self.lblDirFromCaption)
-
-        self.spinDirFrom = QDoubleSpinBox(self.groupDirections)
-        self.spinDirFrom.setObjectName(u"spinDirFrom")
-        self.spinDirFrom.setDecimals(1)
-        self.spinDirFrom.setMinimum(-360.000000000000000)
-        self.spinDirFrom.setMaximum(360.000000000000000)
-        self.spinDirFrom.setValue(0.000000000000000)
-
-        self.formDirections.setWidget(0, QFormLayout.ItemRole.FieldRole, self.spinDirFrom)
-
-        self.lblDirToCaption = QLabel(self.groupDirections)
-        self.lblDirToCaption.setObjectName(u"lblDirToCaption")
-
-        self.formDirections.setWidget(1, QFormLayout.ItemRole.LabelRole, self.lblDirToCaption)
-
-        self.spinDirTo = QDoubleSpinBox(self.groupDirections)
-        self.spinDirTo.setObjectName(u"spinDirTo")
-        self.spinDirTo.setDecimals(1)
-        self.spinDirTo.setMinimum(-360.000000000000000)
-        self.spinDirTo.setMaximum(360.000000000000000)
-        self.spinDirTo.setValue(180.000000000000000)
-
-        self.formDirections.setWidget(1, QFormLayout.ItemRole.FieldRole, self.spinDirTo)
-
-        self.lblDirStepCaption = QLabel(self.groupDirections)
-        self.lblDirStepCaption.setObjectName(u"lblDirStepCaption")
-
-        self.formDirections.setWidget(2, QFormLayout.ItemRole.LabelRole, self.lblDirStepCaption)
-
-        self.spinDirStep = QDoubleSpinBox(self.groupDirections)
-        self.spinDirStep.setObjectName(u"spinDirStep")
-        self.spinDirStep.setDecimals(1)
-        self.spinDirStep.setMinimum(0.000000000000000)
-        self.spinDirStep.setMaximum(360.000000000000000)
-        self.spinDirStep.setValue(15.000000000000000)
-
-        self.formDirections.setWidget(2, QFormLayout.ItemRole.FieldRole, self.spinDirStep)
-
-        self.lblDirList = QLabel(self.groupDirections)
-        self.lblDirList.setObjectName(u"lblDirList")
-        self.lblDirList.setWordWrap(True)
-        self.lblDirList.setTextFormat(Qt.RichText)
-
-        self.formDirections.setWidget(3, QFormLayout.ItemRole.SpanningRole, self.lblDirList)
-
-
-        self.layoutRight.addWidget(self.groupDirections)
-
-        self.groupPhysical = QGroupBox(DlgBatch)
+        self.verticalLayout_4.addWidget(self.lblHeading)
+
+        self.toolBox = QToolBox(DlgBatch)
+        self.toolBox.setObjectName(u"toolBox")
+        self.page = QWidget()
+        self.page.setObjectName(u"page")
+        self.page.setGeometry(QRect(0, 0, 1489, 922))
+        self.verticalLayout = QVBoxLayout(self.page)
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.groupPhysical = QGroupBox(self.page)
         self.groupPhysical.setObjectName(u"groupPhysical")
         self.formPhysical = QFormLayout(self.groupPhysical)
         self.formPhysical.setObjectName(u"formPhysical")
@@ -330,9 +102,316 @@ class Ui_DlgBatch(object):
         self.formPhysical.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.lblPhysicalHint)
 
 
-        self.layoutRight.addWidget(self.groupPhysical)
+        self.verticalLayout.addWidget(self.groupPhysical)
 
-        self.groupLid = QGroupBox(DlgBatch)
+        self.groupConditions = QGroupBox(self.page)
+        self.groupConditions.setObjectName(u"groupConditions")
+        self.formConditions = QFormLayout(self.groupConditions)
+        self.formConditions.setObjectName(u"formConditions")
+        self.chkCreateConditions = QCheckBox(self.groupConditions)
+        self.chkCreateConditions.setObjectName(u"chkCreateConditions")
+        self.chkCreateConditions.setChecked(True)
+
+        self.formConditions.setWidget(0, QFormLayout.ItemRole.SpanningRole, self.chkCreateConditions)
+
+        self.lblZCaption = QLabel(self.groupConditions)
+        self.lblZCaption.setObjectName(u"lblZCaption")
+
+        self.formConditions.setWidget(1, QFormLayout.ItemRole.LabelRole, self.lblZCaption)
+
+        self.layoutZ = QHBoxLayout()
+        self.layoutZ.setObjectName(u"layoutZ")
+        self.spinZFrom = QDoubleSpinBox(self.groupConditions)
+        self.spinZFrom.setObjectName(u"spinZFrom")
+        self.spinZFrom.setDecimals(3)
+        self.spinZFrom.setMinimum(-999.000000000000000)
+        self.spinZFrom.setMaximum(999.000000000000000)
+        self.spinZFrom.setSingleStep(0.100000000000000)
+        self.spinZFrom.setValue(-4.700000000000000)
+
+        self.layoutZ.addWidget(self.spinZFrom)
+
+        self.lblZStep = QLabel(self.groupConditions)
+        self.lblZStep.setObjectName(u"lblZStep")
+
+        self.layoutZ.addWidget(self.lblZStep)
+
+        self.spinZStep = QDoubleSpinBox(self.groupConditions)
+        self.spinZStep.setObjectName(u"spinZStep")
+        self.spinZStep.setDecimals(3)
+        self.spinZStep.setMinimum(0.001000000000000)
+        self.spinZStep.setMaximum(999.000000000000000)
+        self.spinZStep.setSingleStep(0.100000000000000)
+        self.spinZStep.setValue(0.100000000000000)
+
+        self.layoutZ.addWidget(self.spinZStep)
+
+        self.lblZTo = QLabel(self.groupConditions)
+        self.lblZTo.setObjectName(u"lblZTo")
+
+        self.layoutZ.addWidget(self.lblZTo)
+
+        self.spinZTo = QDoubleSpinBox(self.groupConditions)
+        self.spinZTo.setObjectName(u"spinZTo")
+        self.spinZTo.setDecimals(3)
+        self.spinZTo.setMinimum(-999.000000000000000)
+        self.spinZTo.setMaximum(999.000000000000000)
+        self.spinZTo.setSingleStep(0.100000000000000)
+        self.spinZTo.setValue(-0.100000000000000)
+
+        self.layoutZ.addWidget(self.spinZTo)
+
+
+        self.formConditions.setLayout(1, QFormLayout.ItemRole.FieldRole, self.layoutZ)
+
+        self.lblZHint = QLabel(self.groupConditions)
+        self.lblZHint.setObjectName(u"lblZHint")
+        self.lblZHint.setWordWrap(True)
+
+        self.formConditions.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.lblZHint)
+
+        self.lblHeelCaption = QLabel(self.groupConditions)
+        self.lblHeelCaption.setObjectName(u"lblHeelCaption")
+
+        self.formConditions.setWidget(3, QFormLayout.ItemRole.LabelRole, self.lblHeelCaption)
+
+        self.editHeels = QLineEdit(self.groupConditions)
+        self.editHeels.setObjectName(u"editHeels")
+
+        self.formConditions.setWidget(3, QFormLayout.ItemRole.FieldRole, self.editHeels)
+
+        self.lblTrimCaption = QLabel(self.groupConditions)
+        self.lblTrimCaption.setObjectName(u"lblTrimCaption")
+
+        self.formConditions.setWidget(4, QFormLayout.ItemRole.LabelRole, self.lblTrimCaption)
+
+        self.editTrims = QLineEdit(self.groupConditions)
+        self.editTrims.setObjectName(u"editTrims")
+
+        self.formConditions.setWidget(4, QFormLayout.ItemRole.FieldRole, self.editTrims)
+
+        self.lblAnglesHint = QLabel(self.groupConditions)
+        self.lblAnglesHint.setObjectName(u"lblAnglesHint")
+        self.lblAnglesHint.setWordWrap(True)
+
+        self.formConditions.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.lblAnglesHint)
+
+        self.lblConditionGrid = QLabel(self.groupConditions)
+        self.lblConditionGrid.setObjectName(u"lblConditionGrid")
+        self.lblConditionGrid.setTextFormat(Qt.TextFormat.RichText)
+        self.lblConditionGrid.setWordWrap(True)
+
+        self.formConditions.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.lblConditionGrid)
+
+
+        self.verticalLayout.addWidget(self.groupConditions)
+
+        self.toolBox.addItem(self.page, u"Conditions")
+        self.page_2 = QWidget()
+        self.page_2.setObjectName(u"page_2")
+        self.page_2.setGeometry(QRect(0, 0, 1489, 922))
+        self.verticalLayout_2 = QVBoxLayout(self.page_2)
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.groupBands = QGroupBox(self.page_2)
+        self.groupBands.setObjectName(u"groupBands")
+        self.layoutBands = QVBoxLayout(self.groupBands)
+        self.layoutBands.setObjectName(u"layoutBands")
+        self.lblBandsCaption = QLabel(self.groupBands)
+        self.lblBandsCaption.setObjectName(u"lblBandsCaption")
+        self.lblBandsCaption.setTextFormat(Qt.TextFormat.RichText)
+
+        self.layoutBands.addWidget(self.lblBandsCaption)
+
+        self.editBands = QPlainTextEdit(self.groupBands)
+        self.editBands.setObjectName(u"editBands")
+        self.editBands.setMinimumSize(QSize(0, 90))
+        self.editBands.setMaximumSize(QSize(16777215, 140))
+
+        self.layoutBands.addWidget(self.editBands)
+
+        self.lblBandsHint = QLabel(self.groupBands)
+        self.lblBandsHint.setObjectName(u"lblBandsHint")
+        self.lblBandsHint.setWordWrap(True)
+
+        self.layoutBands.addWidget(self.lblBandsHint)
+
+        self.lblBands = QLabel(self.groupBands)
+        self.lblBands.setObjectName(u"lblBands")
+        self.lblBands.setTextFormat(Qt.TextFormat.RichText)
+        self.lblBands.setWordWrap(True)
+
+        self.layoutBands.addWidget(self.lblBands)
+
+        self.formBands = QFormLayout()
+        self.formBands.setObjectName(u"formBands")
+        self.lblIterationsCaption = QLabel(self.groupBands)
+        self.lblIterationsCaption.setObjectName(u"lblIterationsCaption")
+
+        self.formBands.setWidget(0, QFormLayout.ItemRole.LabelRole, self.lblIterationsCaption)
+
+        self.spinIterations = QSpinBox(self.groupBands)
+        self.spinIterations.setObjectName(u"spinIterations")
+        self.spinIterations.setMinimum(1)
+        self.spinIterations.setMaximum(500)
+        self.spinIterations.setValue(20)
+
+        self.formBands.setWidget(0, QFormLayout.ItemRole.FieldRole, self.spinIterations)
+
+        self.lblTargetsCaption = QLabel(self.groupBands)
+        self.lblTargetsCaption.setObjectName(u"lblTargetsCaption")
+
+        self.formBands.setWidget(1, QFormLayout.ItemRole.LabelRole, self.lblTargetsCaption)
+
+        self.comboTargets = QComboBox(self.groupBands)
+        self.comboTargets.setObjectName(u"comboTargets")
+
+        self.formBands.setWidget(1, QFormLayout.ItemRole.FieldRole, self.comboTargets)
+
+
+        self.layoutBands.addLayout(self.formBands)
+
+        self.lblTargets = QLabel(self.groupBands)
+        self.lblTargets.setObjectName(u"lblTargets")
+        self.lblTargets.setTextFormat(Qt.TextFormat.RichText)
+        self.lblTargets.setWordWrap(True)
+
+        self.layoutBands.addWidget(self.lblTargets)
+
+
+        self.verticalLayout_2.addWidget(self.groupBands)
+
+        self.toolBox.addItem(self.page_2, u"Periods and Meshing")
+        self.Wave = QWidget()
+        self.Wave.setObjectName(u"Wave")
+        self.verticalLayout_3 = QVBoxLayout(self.Wave)
+        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
+        self.groupDirections = QGroupBox(self.Wave)
+        self.groupDirections.setObjectName(u"groupDirections")
+        self.formDirections = QFormLayout(self.groupDirections)
+        self.formDirections.setObjectName(u"formDirections")
+        self.lblDirHalfCaption = QLabel(self.groupDirections)
+        self.lblDirHalfCaption.setObjectName(u"lblDirHalfCaption")
+
+        self.formDirections.setWidget(0, QFormLayout.ItemRole.LabelRole, self.lblDirHalfCaption)
+
+        self.layoutDirHalf = QHBoxLayout()
+        self.layoutDirHalf.setObjectName(u"layoutDirHalf")
+        self.spinDirFrom = QDoubleSpinBox(self.groupDirections)
+        self.spinDirFrom.setObjectName(u"spinDirFrom")
+        self.spinDirFrom.setDecimals(1)
+        self.spinDirFrom.setMinimum(-360.000000000000000)
+        self.spinDirFrom.setMaximum(360.000000000000000)
+        self.spinDirFrom.setValue(0.000000000000000)
+
+        self.layoutDirHalf.addWidget(self.spinDirFrom)
+
+        self.lblDirTo = QLabel(self.groupDirections)
+        self.lblDirTo.setObjectName(u"lblDirTo")
+
+        self.layoutDirHalf.addWidget(self.lblDirTo)
+
+        self.spinDirTo = QDoubleSpinBox(self.groupDirections)
+        self.spinDirTo.setObjectName(u"spinDirTo")
+        self.spinDirTo.setDecimals(1)
+        self.spinDirTo.setMinimum(-360.000000000000000)
+        self.spinDirTo.setMaximum(360.000000000000000)
+        self.spinDirTo.setValue(180.000000000000000)
+
+        self.layoutDirHalf.addWidget(self.spinDirTo)
+
+        self.lblDirStep = QLabel(self.groupDirections)
+        self.lblDirStep.setObjectName(u"lblDirStep")
+
+        self.layoutDirHalf.addWidget(self.lblDirStep)
+
+        self.spinDirStep = QDoubleSpinBox(self.groupDirections)
+        self.spinDirStep.setObjectName(u"spinDirStep")
+        self.spinDirStep.setDecimals(1)
+        self.spinDirStep.setMinimum(0.000000000000000)
+        self.spinDirStep.setMaximum(360.000000000000000)
+        self.spinDirStep.setValue(15.000000000000000)
+
+        self.layoutDirHalf.addWidget(self.spinDirStep)
+
+
+        self.formDirections.setLayout(0, QFormLayout.ItemRole.FieldRole, self.layoutDirHalf)
+
+        self.lblDirList = QLabel(self.groupDirections)
+        self.lblDirList.setObjectName(u"lblDirList")
+        self.lblDirList.setTextFormat(Qt.TextFormat.RichText)
+        self.lblDirList.setWordWrap(True)
+
+        self.formDirections.setWidget(1, QFormLayout.ItemRole.SpanningRole, self.lblDirList)
+
+        self.lblDirFullCaption = QLabel(self.groupDirections)
+        self.lblDirFullCaption.setObjectName(u"lblDirFullCaption")
+
+        self.formDirections.setWidget(2, QFormLayout.ItemRole.LabelRole, self.lblDirFullCaption)
+
+        self.layoutDirFull = QHBoxLayout()
+        self.layoutDirFull.setObjectName(u"layoutDirFull")
+        self.spinDirFullFrom = QDoubleSpinBox(self.groupDirections)
+        self.spinDirFullFrom.setObjectName(u"spinDirFullFrom")
+        self.spinDirFullFrom.setDecimals(1)
+        self.spinDirFullFrom.setMinimum(-360.000000000000000)
+        self.spinDirFullFrom.setMaximum(360.000000000000000)
+        self.spinDirFullFrom.setValue(0.000000000000000)
+
+        self.layoutDirFull.addWidget(self.spinDirFullFrom)
+
+        self.lblDirFullTo = QLabel(self.groupDirections)
+        self.lblDirFullTo.setObjectName(u"lblDirFullTo")
+
+        self.layoutDirFull.addWidget(self.lblDirFullTo)
+
+        self.spinDirFullTo = QDoubleSpinBox(self.groupDirections)
+        self.spinDirFullTo.setObjectName(u"spinDirFullTo")
+        self.spinDirFullTo.setDecimals(1)
+        self.spinDirFullTo.setMinimum(-360.000000000000000)
+        self.spinDirFullTo.setMaximum(360.000000000000000)
+        self.spinDirFullTo.setValue(360.000000000000000)
+
+        self.layoutDirFull.addWidget(self.spinDirFullTo)
+
+        self.lblDirFullStep = QLabel(self.groupDirections)
+        self.lblDirFullStep.setObjectName(u"lblDirFullStep")
+
+        self.layoutDirFull.addWidget(self.lblDirFullStep)
+
+        self.spinDirFullStep = QDoubleSpinBox(self.groupDirections)
+        self.spinDirFullStep.setObjectName(u"spinDirFullStep")
+        self.spinDirFullStep.setDecimals(1)
+        self.spinDirFullStep.setMinimum(0.000000000000000)
+        self.spinDirFullStep.setMaximum(360.000000000000000)
+        self.spinDirFullStep.setValue(15.000000000000000)
+
+        self.layoutDirFull.addWidget(self.spinDirFullStep)
+
+
+        self.formDirections.setLayout(3, QFormLayout.ItemRole.FieldRole, self.layoutDirFull)
+
+        self.lblDirFullList = QLabel(self.groupDirections)
+        self.lblDirFullList.setObjectName(u"lblDirFullList")
+        self.lblDirFullList.setTextFormat(Qt.TextFormat.RichText)
+        self.lblDirFullList.setWordWrap(True)
+
+        self.formDirections.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.lblDirFullList)
+
+        self.lblDirHint = QLabel(self.groupDirections)
+        self.lblDirHint.setObjectName(u"lblDirHint")
+        self.lblDirHint.setWordWrap(True)
+
+        self.formDirections.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.lblDirHint)
+
+
+        self.verticalLayout_3.addWidget(self.groupDirections)
+
+        self.toolBox.addItem(self.Wave, u"Wave directions")
+        self.Calculation = QWidget()
+        self.Calculation.setObjectName(u"Calculation")
+        self.verticalLayout_5 = QVBoxLayout(self.Calculation)
+        self.verticalLayout_5.setObjectName(u"verticalLayout_5")
+        self.groupLid = QGroupBox(self.Calculation)
         self.groupLid.setObjectName(u"groupLid")
         self.formLid = QFormLayout(self.groupLid)
         self.formLid.setObjectName(u"formLid")
@@ -363,15 +442,15 @@ class Ui_DlgBatch(object):
 
         self.lblLidInfo = QLabel(self.groupLid)
         self.lblLidInfo.setObjectName(u"lblLidInfo")
+        self.lblLidInfo.setTextFormat(Qt.TextFormat.RichText)
         self.lblLidInfo.setWordWrap(True)
-        self.lblLidInfo.setTextFormat(Qt.RichText)
 
         self.formLid.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.lblLidInfo)
 
 
-        self.layoutRight.addWidget(self.groupLid)
+        self.verticalLayout_5.addWidget(self.groupLid)
 
-        self.groupParallel = QGroupBox(DlgBatch)
+        self.groupParallel = QGroupBox(self.Calculation)
         self.groupParallel.setObjectName(u"groupParallel")
         self.formParallel = QFormLayout(self.groupParallel)
         self.formParallel.setObjectName(u"formParallel")
@@ -408,9 +487,9 @@ class Ui_DlgBatch(object):
         self.formParallel.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.lblParallelHint)
 
 
-        self.layoutRight.addWidget(self.groupParallel)
+        self.verticalLayout_5.addWidget(self.groupParallel)
 
-        self.groupPlan = QGroupBox(DlgBatch)
+        self.groupPlan = QGroupBox(self.Calculation)
         self.groupPlan.setObjectName(u"groupPlan")
         self.formPlan = QFormLayout(self.groupPlan)
         self.formPlan.setObjectName(u"formPlan")
@@ -427,8 +506,8 @@ class Ui_DlgBatch(object):
 
         self.lblPlanConditions = QLabel(self.groupPlan)
         self.lblPlanConditions.setObjectName(u"lblPlanConditions")
+        self.lblPlanConditions.setTextFormat(Qt.TextFormat.RichText)
         self.lblPlanConditions.setWordWrap(True)
-        self.lblPlanConditions.setTextFormat(Qt.RichText)
 
         self.formPlan.setWidget(1, QFormLayout.ItemRole.FieldRole, self.lblPlanConditions)
 
@@ -439,8 +518,8 @@ class Ui_DlgBatch(object):
 
         self.lblPlanMeshes = QLabel(self.groupPlan)
         self.lblPlanMeshes.setObjectName(u"lblPlanMeshes")
+        self.lblPlanMeshes.setTextFormat(Qt.TextFormat.RichText)
         self.lblPlanMeshes.setWordWrap(True)
-        self.lblPlanMeshes.setTextFormat(Qt.RichText)
 
         self.formPlan.setWidget(2, QFormLayout.ItemRole.FieldRole, self.lblPlanMeshes)
 
@@ -451,8 +530,8 @@ class Ui_DlgBatch(object):
 
         self.lblPlanSolves = QLabel(self.groupPlan)
         self.lblPlanSolves.setObjectName(u"lblPlanSolves")
+        self.lblPlanSolves.setTextFormat(Qt.TextFormat.RichText)
         self.lblPlanSolves.setWordWrap(True)
-        self.lblPlanSolves.setTextFormat(Qt.RichText)
 
         self.formPlan.setWidget(3, QFormLayout.ItemRole.FieldRole, self.lblPlanSolves)
 
@@ -463,28 +542,27 @@ class Ui_DlgBatch(object):
 
         self.lblPlanProblems = QLabel(self.groupPlan)
         self.lblPlanProblems.setObjectName(u"lblPlanProblems")
+        self.lblPlanProblems.setTextFormat(Qt.TextFormat.RichText)
         self.lblPlanProblems.setWordWrap(True)
-        self.lblPlanProblems.setTextFormat(Qt.RichText)
 
         self.formPlan.setWidget(4, QFormLayout.ItemRole.FieldRole, self.lblPlanProblems)
 
         self.lblPlanProblem = QLabel(self.groupPlan)
         self.lblPlanProblem.setObjectName(u"lblPlanProblem")
+        self.lblPlanProblem.setTextFormat(Qt.TextFormat.RichText)
         self.lblPlanProblem.setWordWrap(True)
-        self.lblPlanProblem.setTextFormat(Qt.RichText)
 
         self.formPlan.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.lblPlanProblem)
 
 
-        self.layoutRight.addWidget(self.groupPlan)
+        self.verticalLayout_5.addWidget(self.groupPlan)
 
-
-        self.layoutColumns.addLayout(self.layoutRight)
-
-
-        self.root.addLayout(self.layoutColumns)
-
-        self.groupRun = QGroupBox(DlgBatch)
+        self.toolBox.addItem(self.Calculation, u"Calculation settings")
+        self.Run = QWidget()
+        self.Run.setObjectName(u"Run")
+        self.gridLayout = QGridLayout(self.Run)
+        self.gridLayout.setObjectName(u"gridLayout")
+        self.groupRun = QGroupBox(self.Run)
         self.groupRun.setObjectName(u"groupRun")
         self.layoutRun = QVBoxLayout(self.groupRun)
         self.layoutRun.setObjectName(u"layoutRun")
@@ -502,8 +580,8 @@ class Ui_DlgBatch(object):
 
         self.lblProgress = QLabel(self.groupRun)
         self.lblProgress.setObjectName(u"lblProgress")
+        self.lblProgress.setTextFormat(Qt.TextFormat.RichText)
         self.lblProgress.setWordWrap(True)
-        self.lblProgress.setTextFormat(Qt.RichText)
 
         self.layoutRun.addWidget(self.lblProgress)
 
@@ -515,13 +593,34 @@ class Ui_DlgBatch(object):
         self.layoutRun.addWidget(self.textLog)
 
 
-        self.root.addWidget(self.groupRun)
+        self.gridLayout.addWidget(self.groupRun, 0, 0, 1, 3)
 
-        self.lblFooterHint = QLabel(DlgBatch)
+        self.lblFooterHint = QLabel(self.Run)
         self.lblFooterHint.setObjectName(u"lblFooterHint")
         self.lblFooterHint.setWordWrap(True)
 
-        self.root.addWidget(self.lblFooterHint)
+        self.gridLayout.addWidget(self.lblFooterHint, 1, 0, 1, 3)
+
+        self.btnStart = QPushButton(self.Run)
+        self.btnStart.setObjectName(u"btnStart")
+
+        self.gridLayout.addWidget(self.btnStart, 2, 0, 1, 1)
+
+        self.btnStop = QPushButton(self.Run)
+        self.btnStop.setObjectName(u"btnStop")
+        self.btnStop.setEnabled(False)
+
+        self.gridLayout.addWidget(self.btnStop, 2, 1, 1, 1)
+
+        self.btnKill = QPushButton(self.Run)
+        self.btnKill.setObjectName(u"btnKill")
+        self.btnKill.setEnabled(False)
+
+        self.gridLayout.addWidget(self.btnKill, 2, 2, 1, 1)
+
+        self.toolBox.addItem(self.Run, u"Run")
+
+        self.verticalLayout_4.addWidget(self.toolBox)
 
         self.layoutButtons = QHBoxLayout()
         self.layoutButtons.setObjectName(u"layoutButtons")
@@ -539,23 +638,6 @@ class Ui_DlgBatch(object):
 
         self.layoutButtons.addItem(self.spacerJob)
 
-        self.btnStart = QPushButton(DlgBatch)
-        self.btnStart.setObjectName(u"btnStart")
-
-        self.layoutButtons.addWidget(self.btnStart)
-
-        self.btnStop = QPushButton(DlgBatch)
-        self.btnStop.setObjectName(u"btnStop")
-        self.btnStop.setEnabled(False)
-
-        self.layoutButtons.addWidget(self.btnStop)
-
-        self.btnKill = QPushButton(DlgBatch)
-        self.btnKill.setObjectName(u"btnKill")
-        self.btnKill.setEnabled(False)
-
-        self.layoutButtons.addWidget(self.btnKill)
-
         self.spacerButtons = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.layoutButtons.addItem(self.spacerButtons)
@@ -566,11 +648,12 @@ class Ui_DlgBatch(object):
         self.layoutButtons.addWidget(self.btnClose)
 
 
-        self.root.addLayout(self.layoutButtons)
+        self.verticalLayout_4.addLayout(self.layoutButtons)
 
 
         self.retranslateUi(DlgBatch)
 
+        self.toolBox.setCurrentIndex(0)
         self.btnStart.setDefault(True)
 
 
@@ -580,11 +663,17 @@ class Ui_DlgBatch(object):
     def retranslateUi(self, DlgBatch):
         DlgBatch.setWindowTitle(QCoreApplication.translate("DlgBatch", u"Batch", None))
         self.lblHeading.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
+        self.groupPhysical.setTitle(QCoreApplication.translate("DlgBatch", u"Physical conditions", None))
+        self.lblDepthCaption.setText(QCoreApplication.translate("DlgBatch", u"Water depth [m]", None))
+        self.chkInfiniteDepth.setText(QCoreApplication.translate("DlgBatch", u"Infinite depth", None))
+        self.lblGCaption.setText(QCoreApplication.translate("DlgBatch", u"g [m/s\u00b2]", None))
+        self.lblSpeedCaption.setText(QCoreApplication.translate("DlgBatch", u"Forward speed [m/s]", None))
+        self.lblPhysicalHint.setText(QCoreApplication.translate("DlgBatch", u"One set for the whole job. There is no density: every solve runs at 1 t/m\u00b3 and the density is applied when a database is delivered.", None))
         self.groupConditions.setTitle(QCoreApplication.translate("DlgBatch", u"Floating conditions \u2014 the grid", None))
         self.chkCreateConditions.setText(QCoreApplication.translate("DlgBatch", u"Create the conditions below", None))
         self.lblZCaption.setText(QCoreApplication.translate("DlgBatch", u"z_origin [m]", None))
-        self.lblZTo.setText(QCoreApplication.translate("DlgBatch", u"to", None))
         self.lblZStep.setText(QCoreApplication.translate("DlgBatch", u"step", None))
+        self.lblZTo.setText(QCoreApplication.translate("DlgBatch", u"to", None))
         self.lblZHint.setText(QCoreApplication.translate("DlgBatch", u"Height of the vessel origin above the waterplane, negative for a normally floating vessel. This is not the draft \u2014 the two differ by wherever the origin sits on the hull, which is what \"origin sits at\" on the library records.", None))
         self.lblHeelCaption.setText(QCoreApplication.translate("DlgBatch", u"Heel [\u00b0]", None))
         self.editHeels.setText(QCoreApplication.translate("DlgBatch", u"0", None))
@@ -594,26 +683,29 @@ class Ui_DlgBatch(object):
         self.editTrims.setPlaceholderText(QCoreApplication.translate("DlgBatch", u"-2, -1, 0, 1, 2   or   -2..2..1", None))
         self.lblAnglesHint.setText(QCoreApplication.translate("DlgBatch", u"Degrees, as everywhere on screen; slopes are what gets stored. Positive heel puts starboard down, positive trim puts the bow down. A heeled condition always gets a full mesh.", None))
         self.lblConditionGrid.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
+        self.toolBox.setItemText(self.toolBox.indexOf(self.page), QCoreApplication.translate("DlgBatch", u"Conditions", None))
         self.groupBands.setTitle(QCoreApplication.translate("DlgBatch", u"Meshes and the periods solved on them", None))
         self.lblBandsCaption.setText(QCoreApplication.translate("DlgBatch", u"One line per mesh: <b>pct \u2192 periods [s]</b>", None))
-        self.editBands.setPlainText(QCoreApplication.translate("DlgBatch", u"1 -> 1, 2, 3, 4\n"
-"2 -> 5, 6, 7, 8, 9, 10, 12", None))
+        self.editBands.setPlainText(QCoreApplication.translate("DlgBatch", u"1 -> 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4\n"
+"2 -> 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10\n"
+"4 -> 11, 12, 15, 20", None))
         self.lblBandsHint.setText(QCoreApplication.translate("DlgBatch", u"Every line is built and solved for every condition. Short waves need panels that long waves do not, and solver cost is quadratic in the panel count \u2014 so a fine mesh carries the short end of the grid and a coarse one the long end. \":\" works as well as \"\u2192\", ranges may be written 4..20..0.5, and anything after \"#\" is a note.", None))
         self.lblBands.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
         self.lblIterationsCaption.setText(QCoreApplication.translate("DlgBatch", u"Remesh iterations", None))
         self.lblTargetsCaption.setText(QCoreApplication.translate("DlgBatch", u"Apply to", None))
         self.lblTargets.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
+        self.toolBox.setItemText(self.toolBox.indexOf(self.page_2), QCoreApplication.translate("DlgBatch", u"Periods and Meshing", None))
         self.groupDirections.setTitle(QCoreApplication.translate("DlgBatch", u"Wave directions [\u00b0] \u2014 direction of travel", None))
-        self.lblDirFromCaption.setText(QCoreApplication.translate("DlgBatch", u"From", None))
-        self.lblDirToCaption.setText(QCoreApplication.translate("DlgBatch", u"To", None))
-        self.lblDirStepCaption.setText(QCoreApplication.translate("DlgBatch", u"Step", None))
+        self.lblDirHalfCaption.setText(QCoreApplication.translate("DlgBatch", u"Half vessel", None))
+        self.lblDirTo.setText(QCoreApplication.translate("DlgBatch", u"to", None))
+        self.lblDirStep.setText(QCoreApplication.translate("DlgBatch", u"step", None))
         self.lblDirList.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
-        self.groupPhysical.setTitle(QCoreApplication.translate("DlgBatch", u"Physical conditions", None))
-        self.lblDepthCaption.setText(QCoreApplication.translate("DlgBatch", u"Water depth [m]", None))
-        self.chkInfiniteDepth.setText(QCoreApplication.translate("DlgBatch", u"Infinite depth", None))
-        self.lblGCaption.setText(QCoreApplication.translate("DlgBatch", u"g [m/s\u00b2]", None))
-        self.lblSpeedCaption.setText(QCoreApplication.translate("DlgBatch", u"Forward speed [m/s]", None))
-        self.lblPhysicalHint.setText(QCoreApplication.translate("DlgBatch", u"One set for the whole job. There is no density: every solve runs at 1 t/m\u00b3 and the density is applied when a database is delivered.", None))
+        self.lblDirFullCaption.setText(QCoreApplication.translate("DlgBatch", u"Full vessel", None))
+        self.lblDirFullTo.setText(QCoreApplication.translate("DlgBatch", u"to", None))
+        self.lblDirFullStep.setText(QCoreApplication.translate("DlgBatch", u"step", None))
+        self.lblDirFullList.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
+        self.lblDirHint.setText(QCoreApplication.translate("DlgBatch", u"Which grid a solve uses is derived from its mesh, never chosen. A symmetric hull at zero heel is meshed as a half vessel whose port side mirrors its starboard side, so half the circle is solved and the rest filled in exactly on delivery. Heel that same hull and the mesh is a full vessel with nothing to mirror \u2014 it needs the whole circle, or the delivered database is interpolated across what was never solved.", None))
+        self.toolBox.setItemText(self.toolBox.indexOf(self.Wave), QCoreApplication.translate("DlgBatch", u"Wave directions", None))
         self.groupLid.setTitle(QCoreApplication.translate("DlgBatch", u"Irregular frequencies", None))
         self.lblLidCaption.setText(QCoreApplication.translate("DlgBatch", u"Lid", None))
         self.lblLidZCaption.setText(QCoreApplication.translate("DlgBatch", u"Lid z [m]", None))
@@ -633,15 +725,17 @@ class Ui_DlgBatch(object):
         self.lblPlanProblemsCaption.setText(QCoreApplication.translate("DlgBatch", u"Problems", None))
         self.lblPlanProblems.setText(QCoreApplication.translate("DlgBatch", u"\u2014", None))
         self.lblPlanProblem.setText("")
+        self.toolBox.setItemText(self.toolBox.indexOf(self.Calculation), QCoreApplication.translate("DlgBatch", u"Calculation settings", None))
         self.groupRun.setTitle(QCoreApplication.translate("DlgBatch", u"Run", None))
         self.progressSolve.setFormat(QCoreApplication.translate("DlgBatch", u"%v of %m frequencies", None))
         self.lblProgress.setText(QCoreApplication.translate("DlgBatch", u"Idle.", None))
         self.lblFooterHint.setText(QCoreApplication.translate("DlgBatch", u"A step that fails is logged and the batch carries on \u2014 one condition out of the water must not cost the other seven hundred. Run the same job again to continue where a night left off: conditions already there are reused, meshes at the same settings are reused, and solves an existing result already covers are skipped.", None))
-        self.btnLoadJob.setText(QCoreApplication.translate("DlgBatch", u"Load job\u2026", None))
-        self.btnSaveJob.setText(QCoreApplication.translate("DlgBatch", u"Save job\u2026", None))
         self.btnStart.setText(QCoreApplication.translate("DlgBatch", u"Start", None))
         self.btnStop.setText(QCoreApplication.translate("DlgBatch", u"Stop", None))
         self.btnKill.setText(QCoreApplication.translate("DlgBatch", u"Kill", None))
+        self.toolBox.setItemText(self.toolBox.indexOf(self.Run), QCoreApplication.translate("DlgBatch", u"Run", None))
+        self.btnLoadJob.setText(QCoreApplication.translate("DlgBatch", u"Load job\u2026", None))
+        self.btnSaveJob.setText(QCoreApplication.translate("DlgBatch", u"Save job\u2026", None))
         self.btnClose.setText(QCoreApplication.translate("DlgBatch", u"Close", None))
     # retranslateUi
 

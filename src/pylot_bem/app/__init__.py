@@ -1,6 +1,6 @@
 """The standalone application (spec 06 Part A).
 
-    uv run pylot-app
+    uv run pylot-bem
     uv run python -m pylot_bem.app
 
 A dedicated window for building and inspecting hydrodynamic libraries, with no

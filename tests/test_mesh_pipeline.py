@@ -24,6 +24,7 @@ from pylot_bem.mesh_pipeline import (
     check_full_mesh,
 )
 from pylot_db.frames import transform
+from pymeshlab import PyMeshLabException
 
 DESIGN = transform(trim=0.0, heel=0.0, z_origin=-4.0)
 
@@ -391,3 +392,60 @@ def test_the_submerged_summary_refuses_a_condition_out_of_the_water(boxboat):
 
     with pytest.raises(MeshPipelineError, match="below the waterplane"):
         submerged_summary(boxboat, transform(trim=0.0, heel=0.0, z_origin=5.0))
+
+
+# --------------------------------------------------------------------------
+# A hull the mesh library cannot work with
+# --------------------------------------------------------------------------
+
+
+def non_manifold_base_shape():
+    """The boxboat with one triangle hanging off an existing edge.
+
+    That edge now has three incident faces, which is exactly what pymeshlab
+    means by *not two manifold*. A real one is usually a hull exported with
+    duplicated internal structure or unwelded seams; this is the smallest thing
+    that reproduces it, and it is built rather than shipped as an asset so what
+    makes it invalid is visible here.
+    """
+    return make_base_shape(
+        vertices=np.vstack([BOX_VERTICES, [[30.0, 0.0, 20.0]]]),
+        faces=np.vstack([BOX_FACES, [[0, 1, 8]]]),
+    )
+
+
+@pytest.mark.parametrize("call", ["application_point_for", "build_mesh", "submerged_summary"])
+def test_a_mesh_library_failure_is_reported_as_a_pipeline_error(call):
+    """A ``PyMeshLabException`` reaching a caller is a caller that cannot catch it.
+
+    The command line, the application and the batch runner all handle
+    ``MeshPipelineError`` because that is what this module documents itself as
+    raising; none of them has a reason to know a mesh library is underneath. In
+    the application the consequence was a traceback on a stderr a windowed build
+    does not have — so a hull with a topology problem produced a dialog that
+    silently refused to open.
+    """
+    from pylot_bem.mesh_pipeline import submerged_summary
+
+    functions = {
+        "application_point_for": application_point_for,
+        "build_mesh": build_mesh,
+        "submerged_summary": submerged_summary,
+    }
+    with pytest.raises(MeshPipelineError) as raised:
+        functions[call](non_manifold_base_shape(), DESIGN)
+
+    assert "not two manifold" in str(raised.value), "the reason itself must survive"
+    assert "two-manifold surface" in str(raised.value), "and what to do about it"
+    assert isinstance(raised.value.__cause__, PyMeshLabException), "the original is kept"
+
+
+def test_that_message_is_one_line_like_every_other_one():
+    """These are shown as they stand in a rich-text label, where a newline is
+    whitespace — so a message laid out in paragraphs reads as paragraphs in a
+    terminal and as one run-on line in the application.
+    """
+    with pytest.raises(MeshPipelineError) as raised:
+        build_mesh(non_manifold_base_shape(), DESIGN)
+
+    assert "\n" not in str(raised.value)

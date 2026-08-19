@@ -30,7 +30,7 @@ from pylot_db.entities import FloatArray
 # boundary and must not import the application package to do it, so the pair
 # lives in :mod:`pylot_bem.angles`; every caller in this package goes on
 # importing it from here, alongside the other display conversions.
-from pylot_bem.angles import degrees_from_slope, slope_from_degrees
+from pylot_bem.angles import degrees_from_slope, slope_from_degrees, spans_the_circle
 
 __all__ = [
     "CLEAN",
@@ -47,6 +47,7 @@ __all__ = [
     "omega_from_period",
     "period_from_omega",
     "slope_from_degrees",
+    "spans_the_circle",
     "symmetry_reason",
 ]
 

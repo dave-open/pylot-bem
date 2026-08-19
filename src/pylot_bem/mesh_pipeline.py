@@ -13,11 +13,14 @@ changes that matter:
 See the pylot specification, ``03_mesh_pipeline.md``.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import numpy as np
 from pylot_db.entities import BaseShape, FloatArray, IntArray
 from pylot_db.frames import decompose, is_xz_symmetric
+from pymeshlab import PyMeshLabException
 from pymeshup import Volume
 
 __all__ = [
@@ -33,6 +36,47 @@ __all__ = [
 
 class MeshPipelineError(Exception):
     """The pipeline could not produce a usable mesh."""
+
+
+@contextmanager
+def _reporting(doing: str) -> Iterator[None]:
+    """Turn a pymeshlab failure into a :class:`MeshPipelineError`.
+
+    **This module is the boundary, so this is where it belongs.** A
+    ``PyMeshLabException`` reaching a caller is a caller that cannot catch it:
+    the command line, the application and the batch runner all handle
+    ``MeshPipelineError`` because that is what this module documents itself as
+    raising, and they have no reason to know that a mesh library is underneath.
+    In the application the consequence was a traceback on a stderr a windowed
+    build does not have -- so a hull with a topology problem produced a dialog
+    that silently refused to open.
+
+    The original message is kept. "Mesh is not two manifold" is the *reason* and
+    no wrapper writes a better one; what is added is what it was doing and what
+    to do next, neither of which pymeshlab knows.
+
+    Flattened onto one line, like every other error here. These messages are
+    written to be read by a user and are shown as they stand -- and the place
+    that shows them is a rich-text ``QLabel``, where a newline is whitespace.
+    A message laid out in paragraphs reads as paragraphs in a terminal and as
+    one run-on line in the application, which is the half of the audience that
+    cannot also read the traceback.
+
+    Args:
+        doing: What was being attempted, as a phrase completing "... failed".
+    """
+    try:
+        yield
+    except PyMeshLabException as exc:
+        raise MeshPipelineError(
+            f"{doing} failed on this base shape — {' '.join(str(exc).split())}. "
+            "This is almost always the hull's topology: the pipeline needs a closed, "
+            "two-manifold surface, with no holes, no duplicated or T-junction faces, no "
+            "edge shared by more than two triangles and no self-intersections. Repair it "
+            "in the tool that produced it — MeshLab's own cleaning filters are this same "
+            "code — and build the library again. A base shape is fixed for the life of a "
+            "library, so it cannot be replaced in this one."
+        ) from exc
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -141,10 +185,13 @@ def _submerged_volume(base_shape: BaseShape, transform: FloatArray) -> Volume:
     """Transform into diffraction space and keep the wetted part.
 
     Raises:
-        MeshPipelineError: If nothing is left below the waterplane.
+        MeshPipelineError: If nothing is left below the waterplane, or the cut
+            itself fails -- which is where a hull with a topology problem is
+            first noticed, because it is the first filter that needs one.
     """
-    placed = _as_volume(base_shape.vertices, base_shape.faces).transform(np.asarray(transform))
-    wetted = placed.cut_at_waterline()
+    with _reporting("the waterline cut"):
+        placed = _as_volume(base_shape.vertices, base_shape.faces).transform(np.asarray(transform))
+        wetted = placed.cut_at_waterline()
 
     # pymeshup returns an *empty* mesh rather than raising: zero faces and
     # degenerate bounds where min > max. Left alone, that surfaces much later
@@ -191,8 +238,9 @@ def application_point_for(base_shape: BaseShape, transform: FloatArray) -> Float
         **positive**, roughly half the draft above the keel.
 
     Raises:
-        MeshPipelineError: If the base shape is a half mesh, or nothing is
-            submerged at this condition.
+        MeshPipelineError: If the base shape is a half mesh, nothing is
+            submerged at this condition, or the hull's topology defeats the
+            waterline cut.
     """
     check_full_mesh(base_shape.vertices)
     transform = np.asarray(transform, dtype=float)
@@ -237,7 +285,8 @@ def submerged_summary(base_shape: BaseShape, transform: FloatArray) -> Submerged
     """
     wetted = _submerged_volume(base_shape, np.asarray(transform, dtype=float))
     x_lo, x_hi, y_lo, y_hi, z_lo, z_hi = wetted.bounds
-    measures = wetted.ms.get_geometric_measures()
+    with _reporting("measuring the submerged surface"):
+        measures = wetted.ms.get_geometric_measures()
     return SubmergedSummary(
         wetted_area=float(measures["surface_area"]),
         lo=np.array([x_lo, y_lo, z_lo], dtype=float),
@@ -276,8 +325,9 @@ def build_mesh(
         The diffraction-space geometry, and whether it is a half vessel.
 
     Raises:
-        MeshPipelineError: If the base shape is a half mesh, or nothing is
-            submerged at this condition.
+        MeshPipelineError: If the base shape is a half mesh, nothing is
+            submerged at this condition, the regrid produces no faces, or the
+            hull's topology defeats one of the filters.
     """
     check_full_mesh(base_shape.vertices)
     transform = np.asarray(transform, dtype=float)
@@ -286,8 +336,10 @@ def build_mesh(
 
     wetted = _submerged_volume(base_shape, transform)
     if use_symmetry:
-        wetted = wetted.cut_at_xz()  # keeps negative y
-    regridded = wetted.regrid(iterations=iterations, pct=pct)
+        with _reporting("the symmetry cut"):
+            wetted = wetted.cut_at_xz()  # keeps negative y
+    with _reporting(f"the regrid at pct={pct}, iterations={iterations}"):
+        regridded = wetted.regrid(iterations=iterations, pct=pct)
 
     vertices, faces = _geometry_of(regridded)
     if len(faces) == 0:

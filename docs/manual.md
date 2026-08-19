@@ -51,14 +51,14 @@ be wrong. One library serves salt water, fresh water and anything else.
 ## Starting it
 
 ```bash
-uv run pylot-app
+uv run pylot-bem
 ```
 
 Equivalently `uv run python -m pylot_bem.app`, and either form takes one
 optional argument — a library to open:
 
 ```bash
-uv run pylot-app tanker.pylot
+uv run pylot-bem tanker.pylot
 ```
 
 There are no other options. The application is not a command-line tool; the
@@ -132,6 +132,21 @@ memory, and the solver mirrors the missing half. The panel on the right refuses 
 file that is already a half mesh — a half hull plus a symmetry declaration means
 a quarter vessel, and the result is silently wrong rather than obviously broken.
 
+### If the hull's topology is wrong
+
+The import checks that the file is a full mesh, and no more — whether the surface
+is **two-manifold** is not known until something tries to cut it, which is the
+first floating condition. When that fails, `New condition…` says so in its own
+panel and refuses to go on: *not two manifold*, plus what that means. It is not a
+crash and the library is not damaged; the geometry inside it cannot be cut at a
+waterplane.
+
+The cure is upstream. The pipeline needs a closed surface with no holes, no
+duplicated or T-junction faces, no edge shared by more than two triangles and no
+self-intersections. MeshLab's cleaning filters are this same code, so a hull it
+repairs is a hull this accepts. Then build the library again — a base shape is
+fixed for the life of one, so it cannot be swapped into this one.
+
 ---
 
 ## 2. Add a floating condition
@@ -168,6 +183,17 @@ The derived panel updates as you type:
   because it is not a choice.
 - **Submerged** — wetted area and waterline length, for a sanity check against
   whatever you believe the vessel displaces.
+
+**The label names itself.** Left blank it becomes `z…_h…_t…` — draft in metres,
+then heel and trim in degrees, two decimals each: `z-4.70_h-1.00_t2.00`. Each
+number carries the letter of what it is, because three signed decimals in a row
+are three numbers nobody can tell apart at a glance, and mistaking the metres
+for the degrees is an order of magnitude and a unit. The field's placeholder
+shows what you are about to get, so accepting it is doing nothing.
+The alternative shown everywhere a condition appears is its generated id, and a
+tree of seven hundred uuids is a tree nobody can read. Type your own and it is
+kept; nothing anywhere parses a label, so it carries no meaning beyond what you
+read into it.
 
 A condition is **fixed once created**. Only the label can change afterwards.
 Editing `z_origin` would invalidate every mesh and result beneath it, and there
@@ -222,7 +248,9 @@ What is worth reading carefully:
 
 **Periods, not omega.** Entered in seconds and stored as omega. Ascending period
 is descending omega, so a grid solves in the reverse of the order you typed it —
-longest period first.
+longest period first. It opens on 1 to 15 s in half-second steps: 29 frequencies
+covering the range a vessel responds in, and a default worth accepting rather
+than a placeholder.
 
 **Wave direction is the direction of travel** — where the wave is *going*, not
 where it comes from. Capytaine's radians become degrees with a ×180/π and no
@@ -231,6 +259,14 @@ is the mirror image and is filled in on delivery; solving it computes numbers
 that are already known. An asymmetric mesh defaults to 0–360°, and the endpoint
 is dropped either way — 0 and 360 are the same heading, and solving both leaves
 every consumer with a duplicate column to trip over.
+
+The defaults are right, so you only meet the next part by changing one. A **full
+vessel** — an undeclared hull, or any heeled condition — has no half to mirror,
+and a grid that stops at 180° leaves the other half of the compass unsolved. The
+delivered database still covers 360°: mafredo does not refuse a heading past 180,
+it interpolates across what was never solved and answers confidently. Nothing
+downstream detects it, so the screen says so in amber beside the grid, and it is
+worth reading — it is the one setting here whose mistake is invisible afterwards.
 
 **No water density.** As above. If you are used to passing `rho=1025` to
 Capytaine, this is the field you will look for and not find.
@@ -301,10 +337,24 @@ condition in the library, or the ones selected in the tree. That last one, with
 the grid switched off, is how you add a frequency band to a library that is
 already built.
 
-Everything else — directions, depth, gravity, forward speed, lid, workers — is
-one setting for the whole job, and means what it means on the Solve screen.
-`Lid → Auto` is the one thing a batch can do that the command line cannot: it
-resolves per mesh and per band, because by then it is holding both.
+**Wave directions come in two grids**, and this is the one place a job needs
+both. A symmetric hull at zero heel is meshed as a half vessel whose port side
+mirrors its starboard side, so **half vessel** 0–180° is exact and the rest is
+filled in on delivery. Heel that same hull by a degree and the mesh is a **full
+vessel** with nothing to mirror, so it needs 0–360°. A grid of heels contains
+both kinds, which is why one setting could never have been right for a whole job.
+
+Which grid a solve gets is derived from its mesh, never chosen — the same rule
+symmetry itself follows. The screen says which conditions of *your* job get each,
+greys the full-vessel row out as unused when the job has no heel in it, and warns
+when that row stops short of the whole circle. The problem count is summed per
+solve for the same reason: three heels is not three times one heel, it is one
+half-circle solve and two whole-circle ones.
+
+Everything else — depth, gravity, forward speed, lid, workers — is one setting
+for the whole job, and means what it means on the Solve screen. `Lid → Auto` is
+the one thing a batch can do that the command line cannot: it resolves per mesh
+and per band, because by then it is holding both.
 
 ### What this job would do
 

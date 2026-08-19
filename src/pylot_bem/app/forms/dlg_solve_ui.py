@@ -54,7 +54,7 @@ class Ui_DlgSolve(object):
         self.spinPeriodFrom.setDecimals(2)
         self.spinPeriodFrom.setMinimum(0.100000000000000)
         self.spinPeriodFrom.setMaximum(1000.000000000000000)
-        self.spinPeriodFrom.setValue(4.000000000000000)
+        self.spinPeriodFrom.setValue(1.000000000000000)
 
         self.formPeriods.setWidget(0, QFormLayout.ItemRole.FieldRole, self.spinPeriodFrom)
 
@@ -68,7 +68,7 @@ class Ui_DlgSolve(object):
         self.spinPeriodTo.setDecimals(2)
         self.spinPeriodTo.setMinimum(0.100000000000000)
         self.spinPeriodTo.setMaximum(1000.000000000000000)
-        self.spinPeriodTo.setValue(20.000000000000000)
+        self.spinPeriodTo.setValue(15.000000000000000)
 
         self.formPeriods.setWidget(1, QFormLayout.ItemRole.FieldRole, self.spinPeriodTo)
 
@@ -82,7 +82,7 @@ class Ui_DlgSolve(object):
         self.spinPeriodStep.setDecimals(2)
         self.spinPeriodStep.setMinimum(0.010000000000000)
         self.spinPeriodStep.setMaximum(1000.000000000000000)
-        self.spinPeriodStep.setValue(4.000000000000000)
+        self.spinPeriodStep.setValue(0.500000000000000)
 
         self.formPeriods.setWidget(2, QFormLayout.ItemRole.FieldRole, self.spinPeriodStep)
 

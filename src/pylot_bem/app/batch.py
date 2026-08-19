@@ -34,7 +34,14 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QLocale, QThread, Signal
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QFileDialog,
+    QMessageBox,
+    QToolBox,
+    QWidget,
+)
 
 from pylot_bem.api import Pylot
 from pylot_bem.app.formatting import (
@@ -46,6 +53,7 @@ from pylot_bem.app.formatting import (
     escape,
     format_grid,
     slope_from_degrees,
+    spans_the_circle,
 )
 from pylot_bem.app.forms.dlg_batch_ui import Ui_DlgBatch
 from pylot_bem.batch import (
@@ -251,6 +259,8 @@ class BatchDialog(QDialog):
         self._thread: BatchThread | None = None
         self._problem = ""
         self.outcome: BatchOutcome | None = None
+        # Set once, by the first showEvent -- see _size_to_content.
+        self._sized = False
 
         # Read once, not on every keystroke. The preview re-plans as the grid
         # is typed, and a plan reads every mesh in the library -- geometry and
@@ -285,6 +295,9 @@ class BatchDialog(QDialog):
             self.ui.spinDirFrom,
             self.ui.spinDirTo,
             self.ui.spinDirStep,
+            self.ui.spinDirFullFrom,
+            self.ui.spinDirFullTo,
+            self.ui.spinDirFullStep,
             self.ui.spinG,
             self.ui.spinDepth,
             self.ui.spinSpeed,
@@ -307,8 +320,14 @@ class BatchDialog(QDialog):
         self.ui.btnStop.clicked.connect(self._stop)
         self.ui.btnKill.clicked.connect(self._kill)
         self.ui.btnClose.clicked.connect(self.close)
-        self.ui.btnSaveJob.clicked.connect(self.save_job_to_file)
-        self.ui.btnLoadJob.clicked.connect(self.load_job_from_file)
+        # Through a lambda, and not connected directly: `clicked` carries the
+        # button's `checked` state, and PySide fills a slot's first optional
+        # parameter with it. Wired straight through, the click handed `False`
+        # to `path` -- so Save wrote to a file called False, raised, and
+        # printed a traceback to a stderr the packaged application does not
+        # have. It looked exactly like a button that does nothing.
+        self.ui.btnSaveJob.clicked.connect(lambda: self.save_job_to_file())
+        self.ui.btnLoadJob.clicked.connect(lambda: self.load_job_from_file())
 
         self.ui.btnStop.setToolTip(
             "Graceful — the solve in flight is finished and stored, then the batch ends"
@@ -322,24 +341,80 @@ class BatchDialog(QDialog):
         self._size_to_content()
 
     def _size_to_content(self) -> None:
-        """Take the layout's own height, but never more than the screen has.
+        """Make room for the **tallest** page, but never more than the screen.
 
-        Two columns of wrapped explanation report a minimum height only once
-        they have a width to wrap against, so the dialog opens shorter than the
-        sum of what is in it and the group boxes draw over each other --
-        SolveDialog carries the same line for the same reason.
+        Wrapped explanation reports a minimum height only once it has a width to
+        wrap against, so a dialog full of it opens shorter than the sum of what
+        is in it -- SolveDialog carries the same line for the same reason.
 
-        Capped, which SolveDialog does not need to be: this screen is half again
-        as tall, and asking for 1260 pixels on a 1080-pixel display puts Start,
-        Stop and Kill below the bottom edge with no way to reach them. Under the
-        cap the log gives up its space first, which is the part that can be
-        scrolled.
+        The pages make it more than that line, and worse. ``sizeHint`` describes
+        one page and resolves none of the wrapping, so it reported the same 528
+        pixels for all five while the Run page -- two progress bars and a log --
+        actually needed 558. The dialog stayed at 528, the layout pushed the
+        button row past the bottom edge, and Start, Stop and Kill went out of
+        reach on the one page you need them.
+
+        So this measures rather than predicts: it opens each page, lets the
+        layout settle, and asks how far past the bottom the buttons actually
+        landed. That is the number, and no hint of any kind reports it.
+
+        Capped, because asking for 1200 pixels on a 1080-pixel display puts the
+        same buttons off-screen with no way back. Under the cap a page scrolls,
+        which is what a QToolBox page does.
         """
-        wanted = self.sizeHint().height()
         screen = self.screen() or QApplication.primaryScreen()
-        if screen is not None:
-            wanted = min(wanted, int(screen.availableGeometry().height() * 0.92))
+        limit = int(screen.availableGeometry().height() * 0.92) if screen else None
+
+        wanted = self.sizeHint().height()
+        if limit is not None:
+            wanted = min(wanted, limit)
         self.resize(self.width(), wanted)
+
+        overflow = self._worst_button_overflow()
+        if overflow > 0:
+            grown = wanted + overflow
+            self.resize(self.width(), min(grown, limit) if limit is not None else grown)
+
+    def _worst_button_overflow(self) -> int:
+        """How far below the bottom edge the button row lands, at its worst.
+
+        Across every page, because only one is laid out at a time and they are
+        of very different heights. The page that was open is put back, so this
+        is invisible to whoever is looking at the screen.
+        """
+        toolbox = self.findChild(QToolBox)
+        if toolbox is None or self.layout() is None:
+            return 0
+
+        was = toolbox.currentIndex()
+        try:
+            worst = 0
+            for index in range(toolbox.count()):
+                toolbox.setCurrentIndex(index)
+                self.layout().activate()
+                bottom = self.ui.btnStart.mapTo(self, self.ui.btnStart.rect().bottomLeft()).y()
+                # The margin below the row, so it is clear of the edge rather
+                # than flush against it.
+                worst = max(worst, bottom + self.layout().contentsMargins().bottom() - self.height())
+            return worst
+        finally:
+            toolbox.setCurrentIndex(was)
+            self.layout().activate()
+
+    def showEvent(self, event) -> None:
+        """Size again the first time it is shown.
+
+        Nothing wraps until it has a width, and a widget has no real width
+        until it is shown -- so the measurement in ``__init__`` is taken
+        against a layout that has not happened yet. Repeating it here is what
+        makes the number right. Once only: after that the size is the user's,
+        and a dialog that resizes itself every time it is raised is a dialog
+        that will not stay where it is put.
+        """
+        super().showEvent(event)
+        if not self._sized:
+            self._sized = True
+            self._size_to_content()
 
     # -- reading the screen ------------------------------------------------
 
@@ -351,16 +426,26 @@ class BatchDialog(QDialog):
             self.ui.spinZFrom.value(), self.ui.spinZTo.value(), self.ui.spinZStep.value()
         )
 
-    def directions(self) -> tuple[float, ...]:
-        """The direction grid, with no duplicate at the wrap-around.
+    def directions(self, *, full_vessel: bool = False) -> tuple[float, ...]:
+        """One of the two direction grids, with no duplicate at the wrap-around.
 
         0 and 360 are the same heading, and solving both costs a full set of
         problems for a second copy of a column that is already there -- the
-        same rule, and the same modulo test, as the Solve screen.
+        same rule, and the same modulo test, as the Solve screen. It is what
+        lets the full-vessel row read *0 to 360*, which is how a person says
+        "all the way round", and still solve 24 headings rather than 25.
+
+        Args:
+            full_vessel: Which row to read. The grids are kept apart because a
+                job that heels a hull contains both kinds of mesh, and which
+                one a solve gets is derived from the mesh, never chosen.
         """
-        values = value_range(
-            self.ui.spinDirFrom.value(), self.ui.spinDirTo.value(), self.ui.spinDirStep.value()
+        spins = (
+            (self.ui.spinDirFullFrom, self.ui.spinDirFullTo, self.ui.spinDirFullStep)
+            if full_vessel
+            else (self.ui.spinDirFrom, self.ui.spinDirTo, self.ui.spinDirStep)
         )
+        values = value_range(*(spin.value() for spin in spins))
         if len(values) > 1 and abs((values[-1] - values[0]) % 360.0) < 1e-9:
             values = values[:-1]
         return values
@@ -395,6 +480,7 @@ class BatchDialog(QDialog):
             targets=self.targets(),
             condition_ids=self._selected,
             wave_directions=self.directions(),
+            wave_directions_full=self.directions(full_vessel=True),
             water_depth=np.inf
             if self.ui.chkInfiniteDepth.isChecked()
             else self.ui.spinDepth.value(),
@@ -425,12 +511,24 @@ class BatchDialog(QDialog):
         self._refresh()
 
     def _refresh(self) -> None:
+        """Redraw every derived readout from one reading of the screen.
+
+        The plan is made **once** here and handed to the two readouts that need
+        it. It is cheap -- the library is read once at construction, not per
+        keystroke -- but it is not free, and this runs on every character typed
+        into the heels field.
+        """
         self.ui.spinLidZ.setEnabled(self.ui.comboLid.currentIndex() == _LID_BELOW)
+        try:
+            preview, problem = plan(self._library, self.job(), state=self._state), ""
+        except BatchError as exc:
+            preview, problem = None, str(exc)
+
         self._show_grid()
         self._show_bands()
-        self._show_directions()
+        self._show_directions(preview)
         self._show_lid()
-        self._show_plan()
+        self._show_plan(preview, problem)
 
     def _show_grid(self) -> None:
         if not self.ui.chkCreateConditions.isChecked():
@@ -469,39 +567,57 @@ class BatchDialog(QDialog):
             )
         )
 
-    def _show_directions(self) -> None:
-        """The grid, and what decides whether half the circle is enough.
+    def _show_directions(self, preview) -> None:
+        """Both grids, and which conditions of this job get each.
 
-        A heeled condition gets a full mesh whatever the hull is, and a full
-        mesh has no port half to mirror -- so the answer depends on the job's
-        heels, not on the library alone. It is worth a sentence here because
-        this is the one setting where getting it wrong is invisible: half a
-        circle solved on an asymmetric body delivers a database mafredo will
-        interpolate across and answer confidently from.
+        The two rows are not a preference. Which one a solve uses is derived
+        from its mesh -- a symmetric hull at zero heel is a half vessel whose
+        port side mirrors its starboard side, and anything heeled is a full
+        vessel with nothing to mirror. A grid of heels contains both, which is
+        why one row could never have been right.
+
+        The full-vessel row carries a warning, because it is the one setting on
+        this screen where being wrong is invisible: mafredo does not refuse a
+        heading past 180, it interpolates across whatever was never solved and
+        answers confidently. Shown only when this job will actually build a
+        full mesh -- a warning that is always on is one nobody reads.
         """
-        directions = self.directions()
-        if not self._library.base_shape.is_xz_symmetric:
-            why = "the hull is not declared symmetric, so every mesh is a full vessel — solve the whole circle"
-        elif self._any_heeled():
-            why = "heeled conditions get a full mesh, and a full mesh has no half to mirror — those need the whole circle"
-        else:
-            why = "symmetric and unheeled — the other half is the mirror image and is filled in on delivery"
+        half = self.directions()
+        full = self.directions(full_vessel=True)
+        # Asked of the plan rather than worked out again here: it derives this
+        # per step by the same rule create_mesh will, and a second opinion in
+        # the interface is a second thing to keep in step with storage.
+        builds_full = preview is not None and preview.solves_on_a_full_vessel > 0
+
         self.ui.lblDirList.setText(
-            derived(f"<b>{len(directions)}</b>: {escape(format_grid(directions, decimals=1))}", why)
+            derived(
+                f"<b>{len(half)}</b>: {escape(format_grid(half, decimals=1))}",
+                "for a symmetric hull at zero heel — the other half is the mirror image "
+                "and is filled in on delivery",
+            )
         )
 
-    def _any_heeled(self) -> bool:
-        """Whether any condition this job touches is heeled.
+        grid = f"<b>{len(full)}</b>: {escape(format_grid(full, decimals=1))}"
+        if not builds_full:
+            self.ui.lblDirFullList.setText(
+                derived(grid, "unused — every condition in this job is meshed as a half vessel")
+            )
+        elif spans_the_circle(full):
+            self.ui.lblDirFullList.setText(
+                derived(grid, f"{self._full_vessel_reason()} — the whole circle, as it must be")
+            )
+        else:
+            self.ui.lblDirFullList.setText(
+                f'{grid} <span style="color:{INCOMPLETE}">— {self._full_vessel_reason()}, and this '
+                f"grid stops at {max(full):g}°. Nothing fills in the rest: the delivered database "
+                "is interpolated across the gap and wrong there, with nothing to show why.</span>"
+            )
 
-        From the grid when it creates conditions, and from the library when it
-        does not -- in both cases the conditions that will actually be meshed.
-        """
-        if self.ui.chkCreateConditions.isChecked():
-            try:
-                return any(abs(d) > 0 for d in parse_numbers(self.ui.editHeels.text(), what="Heel"))
-            except BatchError:
-                return False
-        return any(condition.heel != 0.0 for condition in self._library.conditions())
+    def _full_vessel_reason(self) -> str:
+        """Why this job produces a full-vessel mesh at all."""
+        if not self._library.base_shape.is_xz_symmetric:
+            return "the hull is not declared symmetric, so every mesh is a full vessel"
+        return "heeled conditions get a full mesh"
 
     def _show_lid(self) -> None:
         mode = LID_MODES[self.ui.comboLid.currentIndex()][1]
@@ -530,11 +646,9 @@ class BatchDialog(QDialog):
                 )
             )
 
-    def _show_plan(self) -> None:
+    def _show_plan(self, preview, problem: str) -> None:
         """Fill the four counts, and say why Start is off when it is."""
-        try:
-            preview = plan(self._library, self.job(), state=self._state)
-        except BatchError as exc:
+        if preview is None:
             for label in (
                 self.ui.lblPlanConditions,
                 self.ui.lblPlanMeshes,
@@ -542,7 +656,7 @@ class BatchDialog(QDialog):
                 self.ui.lblPlanProblems,
             ):
                 label.setText("—")
-            self._set_problem(str(exc))
+            self._set_problem(problem)
             return
 
         self.ui.lblPlanConditions.setText(
@@ -554,16 +668,21 @@ class BatchDialog(QDialog):
         self.ui.lblPlanMeshes.setText(
             derived(f"<b>{preview.meshes_to_build}</b> to build", f"{preview.meshes_reused} reused")
         )
+        # The full-vessel count is here because it is what explains the
+        # problem count: three heels is not three times one heel, it is one
+        # half-circle solve and two whole-circle ones.
+        on_full = preview.solves_on_a_full_vessel
         self.ui.lblPlanSolves.setText(
             derived(
                 f"<b>{preview.solves_to_run}</b> to run",
-                f"{preview.solves_skipped} already covered",
+                f"{on_full} on a full vessel, {preview.solves_skipped} already covered",
             )
         )
         self.ui.lblPlanProblems.setText(
             derived(
                 f"<b>{preview.problems:,}</b>",
-                "six radiation per frequency, plus one per direction",
+                f"six radiation per frequency, plus one per direction — "
+                f"{preview.directions} headings on a half vessel, {preview.directions_full} on a full one",
             )
         )
 
@@ -718,7 +837,7 @@ class BatchDialog(QDialog):
 
     # -- keeping a job -----------------------------------------------------
 
-    def save_job_to_file(self, path=None) -> Path | None:
+    def save_job_to_file(self, *, path=None) -> Path | None:
         """Write what is on screen to a job file.
 
         A job is four numbers and a table that took a while to get right, and
@@ -729,7 +848,8 @@ class BatchDialog(QDialog):
 
         Args:
             path: Where to write. Asked for when omitted, which is what the
-                button does.
+                button does. **Keyword only**: a signal that filled it
+                positionally is exactly how this got wired wrong once.
 
         Returns:
             The path written, or ``None`` if the job could not be read off the
@@ -761,7 +881,7 @@ class BatchDialog(QDialog):
         self._log(f"Job saved to {written}.")
         return written
 
-    def load_job_from_file(self, path=None) -> BatchJob | None:
+    def load_job_from_file(self, *, path=None) -> BatchJob | None:
         """Read a job file back onto the screen.
 
         Refused outright while a batch is running: the settings are what the
@@ -769,7 +889,8 @@ class BatchDialog(QDialog):
         describing one job and the workers doing another.
 
         Args:
-            path: The file. Asked for when omitted.
+            path: The file. Asked for when omitted. **Keyword only**, as on
+                :meth:`save_job_to_file` and for the same reason.
 
         Returns:
             The job loaded, or ``None`` if nothing was.
@@ -904,37 +1025,50 @@ class BatchDialog(QDialog):
             self.ui.spinDepth.setValue(job.water_depth)
         self.ui.spinG.setValue(job.g)
         self.ui.spinSpeed.setValue(job.forward_speed)
-        self._fill_directions(job.wave_directions, notes)
+        self._fill_directions(job.wave_directions, notes, full_vessel=False)
+        # Falls back the way the job does, so what the screen shows is what a
+        # run would use rather than an empty row implying no headings at all.
+        self._fill_directions(
+            job.directions_for(is_xz_symmetric=False), notes, full_vessel=True
+        )
         self.ui.spinWorkers.setValue(job.workers or default_workers(64))
         self.ui.spinOmp.setValue(job.omp_threads)
         self.ui.chkResume.setChecked(job.resume)
         self._refresh()
         return notes
 
-    def _fill_directions(self, directions, notes: list[str]) -> None:
-        """Show a direction grid as the from/to/step this screen holds.
+    def _fill_directions(self, directions, notes: list[str], *, full_vessel: bool) -> None:
+        """Show one direction grid as the from/to/step this screen holds.
 
         Same shape of problem as the drafts, and same answer: reproduce it
         where it is a range, and say so where it is not rather than quietly
         solving a different set of headings.
         """
+        which = "full-vessel" if full_vessel else "half-vessel"
+        spins = (
+            (self.ui.spinDirFullFrom, self.ui.spinDirFullTo, self.ui.spinDirFullStep)
+            if full_vessel
+            else (self.ui.spinDirFrom, self.ui.spinDirTo, self.ui.spinDirStep)
+        )
+        first, last, step_of = spins
+
         if not directions:
-            self.ui.spinDirStep.setValue(0.0)
-            self.ui.spinDirFrom.setValue(0.0)
-            self.ui.spinDirTo.setValue(0.0)
+            for spin in spins:
+                spin.setValue(0.0)
             return
         step = directions[1] - directions[0] if len(directions) > 1 else 15.0
-        self.ui.spinDirFrom.setValue(directions[0])
-        # A grid that wrapped lost its last point on the way out, so the "to"
-        # that reproduces it is one step past the last one it kept.
-        self.ui.spinDirTo.setValue(directions[-1])
-        self.ui.spinDirStep.setValue(step)
-        if self.directions() != tuple(directions):
-            self.ui.spinDirTo.setValue(directions[-1] + step)
-            if self.directions() != tuple(directions):
+        first.setValue(directions[0])
+        last.setValue(directions[-1])
+        step_of.setValue(step)
+        if self.directions(full_vessel=full_vessel) != tuple(directions):
+            # A grid that wrapped lost its last point on the way out, so the
+            # "to" that reproduces it is one step past the last one it kept.
+            last.setValue(directions[-1] + step)
+            if self.directions(full_vessel=full_vessel) != tuple(directions):
                 notes.append(
-                    f"Its {len(directions)} wave directions are not an evenly spaced range, and "
-                    f"this screen only writes one. It now shows {len(self.directions())}."
+                    f"Its {len(directions)} {which} wave directions are not an evenly spaced "
+                    f"range, and this screen only writes one. It now shows "
+                    f"{len(self.directions(full_vessel=full_vessel))}."
                 )
 
     def closeEvent(self, event) -> None:

@@ -32,7 +32,7 @@ survived: the small-angle cases anyone would check by eye looked right.
 
 import numpy as np
 
-__all__ = ["degrees_from_slope", "slope_from_degrees"]
+__all__ = ["degrees_from_slope", "slope_from_degrees", "spans_the_circle"]
 
 
 def slope_from_degrees(angle: float) -> float:
@@ -65,3 +65,40 @@ def degrees_from_slope(slope: float) -> float:
     # can land a few ulps over after a round trip -- and a nan reaching a
     # widget shows as "nan deg" long after the cause is out of sight.
     return float(np.degrees(np.arcsin(np.clip(slope, -1.0, 1.0))))
+
+
+def spans_the_circle(directions) -> bool:
+    """Whether a heading grid covers the whole compass.
+
+    The question a **full-vessel** solve has to answer. An XZ-symmetric body at
+    zero heel has a port half that is the mirror of its starboard half, so
+    solving 0-180 and filling in the rest on delivery is exact. A full vessel
+    has no half to mirror -- and the delivered database still covers 360
+    degrees, because mafredo does not refuse a heading past 180. It interpolates
+    across whatever was never solved and answers confidently.
+
+    So this is not a preference. On a full vessel a half grid is a database that
+    is wrong over half the compass with nothing anywhere saying so, which is
+    why both the Solve screen and the batch runner ask this and say something
+    when the answer is no.
+
+    Measured as *the arc covered, plus one more step* -- because a grid that
+    spans the circle deliberately omits its wrap-around point: 0 and 360 are
+    the same heading and solving both stores a duplicate column. So 0..345 in
+    steps of 15 covers the circle and 0..180 does not, which is exactly how a
+    reader would count it.
+
+    Args:
+        directions: Headings [degrees], ascending. Fewer than two cannot span
+            anything.
+
+    Returns:
+        Whether the grid reaches the whole way round.
+    """
+    values = [float(d) for d in directions]
+    if len(values) < 2:
+        return False
+    # The last step rather than the first: an uneven grid is judged on the gap
+    # it actually leaves at the wrap-around, which is the one that matters.
+    step = values[-1] - values[-2]
+    return (max(values) - min(values)) + step >= 360.0 - 1e-9

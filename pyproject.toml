@@ -50,6 +50,13 @@ dependencies = [
     # 3D display for the standalone application
     "vtk",
     "PySide6-essentials",
+    # What pylot_bem.plotting is built on.  Not imported by the application --
+    # the Qt viewport goes through pylot_bem.polydata precisely so it does not
+    # pay for vedo -- but plotting is a documented public module that imports
+    # it at the top, so a checkout without it cannot import that module or run
+    # its tests.  It was undeclared and happened to be present in a developer
+    # environment, which is the failure mode a lockfile exists to prevent.
+    "vedo",
     # The Inspect tab's plot.  Already present as a vedo dependency; declared
     # here because the application imports it directly, and an undeclared
     # transitive dependency is one that disappears when the other package
@@ -67,7 +74,7 @@ pylot-db = { path = "../pylot-db", editable = true }
 
 [project.scripts]
 pylot = "pylot_bem.cli:main"
-pylot-app = "pylot_bem.app:main"
+pylot-bem = "pylot_bem.app:main"
 
 # ============================================================================
 # pytest

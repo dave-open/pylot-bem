@@ -17,7 +17,8 @@ import pytest
 from hull import BOX_FACES, BOX_VERTICES, TANKER_STL
 from pymeshup import Load
 
-from pylot_bem.api import Pylot, _check_dataset_matches
+from pylot_bem.angles import slope_from_degrees
+from pylot_bem.api import Pylot, _check_dataset_matches, condition_name
 from pylot_bem.mesh_pipeline import MeshPipelineError, application_point_for
 from pylot_bem.solver import SolveSettings, SolverError
 from pylot_db.frames import decompose, transform
@@ -449,3 +450,61 @@ def test_store_result_accepts_a_shorter_grid_than_was_asked_for(solved):
 
     assert len(stored.omegas) == len(OMEGAS)
     assert np.allclose(stored.omegas, result.omegas)
+
+
+# --------------------------------------------------------------------------
+# A condition names itself
+# --------------------------------------------------------------------------
+
+
+def test_a_condition_is_named_after_what_floats_it(box):
+    """The alternative shown everywhere a condition appears is its generated
+    id, and a tree of seven hundred uuids is a tree nobody can read.
+    """
+    condition = box.create_condition(
+        z_origin=-4.0, heel=slope_from_degrees(-1.0), trim=slope_from_degrees(2.0)
+    )
+
+    assert condition.label == "z-4.00_h-1.00_t2.00"
+
+
+def test_the_name_is_in_degrees_because_every_column_is(box):
+    """A slope in a label would be the one place in pylot that showed one."""
+    condition = box.create_condition(z_origin=-4.0, heel=slope_from_degrees(30.0))
+
+    assert condition.label == "z-4.00_h30.00_t0.00", "30 degrees, not its sine"
+
+
+def test_a_label_that_was_given_is_never_replaced(box):
+    condition = box.create_condition(z_origin=-4.0, label="Design draft, summer")
+
+    assert condition.label == "Design draft, summer"
+
+
+def test_the_name_never_reads_as_negative_zero():
+    """A heel a hair below zero would otherwise show as "-0.00" — which looks
+    like a typo in a column of otherwise identical rows.
+    """
+    assert condition_name(-3.0, -1e-9, -0.0) == "z-3.00_h0.00_t0.00"
+
+
+def test_two_conditions_close_enough_to_be_one_read_alike():
+    """Two decimals is one order finer than the 1e-3 at which two conditions
+    are held to be the same condition, so rows that read alike are alike.
+    """
+    assert condition_name(-3.0, 0.0, 0.0) == condition_name(-3.0000001, 0.0, 0.0)
+
+
+def test_the_name_is_a_label_and_never_an_id(box):
+    """ADR-4: ids are opaque and nothing may parse one. The previous
+    implementation encoded parameters into names and read them back out, which
+    is the failure that rule exists to prevent — so this goes in the field that
+    nothing anywhere parses and that can be corrected afterwards.
+    """
+    condition = box.create_condition(z_origin=-4.0)
+
+    assert condition.id != condition.label
+    assert "-4.00" not in condition.id
+    # And it really is only a label: renaming it changes nothing else.
+    box.set_condition_label(condition.id, "something else")
+    assert box.condition(condition.id).z_origin == -4.0
