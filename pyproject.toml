@@ -65,12 +65,6 @@ dependencies = [
     "matplotlib",
 ]
 
-# For development only.  uv applies tool.uv.sources to the project being worked
-# on and never to consumers, so this does not follow the package to anyone who
-# installs it -- they resolve `pylot-db` normally.  It does assume the two
-# repositories are cloned side by side.
-[tool.uv.sources]
-pylot-db = { path = "../pylot-db", editable = true }
 
 [project.scripts]
 pylot = "pylot_bem.cli:main"
