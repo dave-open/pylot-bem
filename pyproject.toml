@@ -40,7 +40,7 @@ dependencies = [
     # below for how a development checkout finds it.
     "pylot-db",
     # BEM solver, run in-process — Apache 2.0 since 2.3 (ADR-1)
-    "capytaine>=2.3.1",
+    "capytaine<3.0",
     # mesh transform / cutting / regrid (ADR-2)
     "pymeshup>=26.3.4",
     # NOT used directly.  Resolver floor: without it uv backtracks to numba
