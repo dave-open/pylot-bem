@@ -36,3 +36,11 @@ jobs:
         with:
           name: pylot-windows-x64
           path: dist/pylot/
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/pylot/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
