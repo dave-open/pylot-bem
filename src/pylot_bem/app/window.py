@@ -20,6 +20,9 @@ context menu and on the property pane -- which is what stops a button being
 enabled for a selection it makes no sense for.
 """
 
+import shutil
+import sqlite3
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -115,6 +118,9 @@ class MainWindow(QMainWindow):
         self._settings = settings if settings is not None else QSettings("dave-open", "pylot")
 
         self.library: Pylot | None = None
+        self._working_copy_dir: tempfile.TemporaryDirectory[str] | None = None
+        self._source_path: Path | None = None
+        self._dirty = False
 
         # Kept because a dock has a close button and nothing else offers one a
         # way back: closing Properties or Data hid it for the life of the
@@ -200,6 +206,8 @@ class MainWindow(QMainWindow):
         file_menu = self.menus["File"] = self.menuBar().addMenu("&File")
         file_menu.addAction("&New library…", self.new_library)
         file_menu.addAction("&Open library…", self.open_library)
+        self.save_action = file_menu.addAction("&Save", self.save_library)
+        self.save_as_action = file_menu.addAction("Save &As…", self.save_library_as)
         self.recent_menu = self.menus["Recent Files"] = file_menu.addMenu("Recent Files")
         self._rebuild_recent_files_menu()
         self.close_action = file_menu.addAction("&Close library", self.close_library)
@@ -283,16 +291,25 @@ class MainWindow(QMainWindow):
     # -- library lifecycle -------------------------------------------------
 
     def new_library(self) -> None:
+        if not self._prepare_to_close_current():
+            return
         dialog = NewLibraryDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         values = dialog.values()
+        source_path = Path(values["path"]).resolve()
+        if source_path.exists():
+            self._problem("Could not create the library", LibraryError(f"{source_path} already exists"))
+            return
+        working_dir, working_path = self._working_copy_path(source_path)
+        values["path"] = working_path
         try:
             library = Pylot.create_new(**values)
         except (LibraryError, MeshPipelineError, OSError) as exc:
+            working_dir.cleanup()
             self._problem("Could not create the library", exc)
             return
-        self._adopt(library)
+        self._adopt(library, source_path=source_path, working_copy_dir=working_dir, dirty=True)
 
     def open_library(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Open library", "", "pylot library (*.pylot);;All files (*)")
@@ -307,9 +324,16 @@ class MainWindow(QMainWindow):
         goes to the Validation tab, which is a different problem with a
         different remedy.
         """
+        if not self._prepare_to_close_current():
+            return
+        source_path = Path(path).resolve()
+        working_dir = None
         try:
-            library = Pylot.open(path)
+            working_dir, working_path = self._working_copy_path(source_path)
+            library = Pylot.open(working_path)
         except (LibraryError, OSError) as exc:
+            if working_dir is not None:
+                working_dir.cleanup()
             self._problem("Could not open the library", exc)
             # A moved or deleted file left permanently in Recent Files is a
             # menu entry that can never work again. A library that opened
@@ -317,12 +341,21 @@ class MainWindow(QMainWindow):
             # version refuses, is a different problem -- still the user's
             # file, still worth being able to get back to -- so only a
             # genuinely missing path is dropped.
-            if not Path(path).exists():
-                self._forget_recent_file(path)
+            if not source_path.exists():
+                self._forget_recent_file(source_path)
             return
-        self._adopt(library)
+        self._adopt(library, source_path=source_path, working_copy_dir=working_dir, dirty=False)
 
     def close_library(self) -> None:
+        if not self._prepare_to_close_current():
+            return
+        self._close_current_library()
+        self._discard_working_copy()
+        self._source_path = None
+        self._dirty = False
+        self._show_current_document()
+
+    def _close_current_library(self) -> None:
         if self.library is not None:
             self.library.close()
         self.library = None
@@ -331,18 +364,117 @@ class MainWindow(QMainWindow):
         self.selection_pane.show_nothing()
         self.panes.setCurrentWidget(self.selection_pane)
         self._set_enabled(False)
-        self.setWindowTitle("pylot")
         self.statusBar().showMessage("No library open.")
 
-    def _adopt(self, library: Pylot) -> None:
+    def _adopt(
+        self,
+        library: Pylot,
+        *,
+        source_path: Path,
+        working_copy_dir: tempfile.TemporaryDirectory[str],
+        dirty: bool,
+    ) -> None:
         if self.library is not None:
-            self.library.close()
+            self._close_current_library()
+            self._discard_working_copy()
         self.library = library
+        self._working_copy_dir = working_copy_dir
+        self._source_path = Path(source_path)
+        self._dirty = dirty
         self._set_enabled(True)
-        self.setWindowTitle(f"pylot — {library.path}")
-        self._remember_recent_file(library.path)
+        self._show_current_document()
+        self._remember_recent_file(self._source_path)
         self.refresh()
         self.tree.select_ids(["library"])
+
+    def _working_copy_path(self, source_path: Path) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+        working_dir = tempfile.TemporaryDirectory(prefix="pylot-")
+        working_path = Path(working_dir.name) / source_path.name
+        if source_path.exists():
+            shutil.copy2(source_path, working_path)
+        return working_dir, working_path
+
+    def _discard_working_copy(self) -> None:
+        if self._working_copy_dir is not None:
+            self._working_copy_dir.cleanup()
+            self._working_copy_dir = None
+
+    @property
+    def document_path(self) -> Path | None:
+        return self._source_path
+
+    def _show_current_document(self) -> None:
+        if self._source_path is None:
+            self.setWindowTitle("pylot")
+            return
+        marker = " *" if self._dirty else ""
+        self.setWindowTitle(f"pylot — {self._source_path}{marker}")
+
+    def _set_dirty(self, on: bool) -> None:
+        self._dirty = on
+        self._show_current_document()
+
+    def save_library(self) -> None:
+        if self.library is None:
+            return
+        if self._source_path is None:
+            self.save_library_as()
+            return
+        self._save_to_path(self._source_path)
+
+    def save_library_as(self) -> None:
+        if self.library is None:
+            return
+        start = str(self._source_path) if self._source_path is not None else ""
+        path, _ = QFileDialog.getSaveFileName(self, "Save library as", start, "pylot library (*.pylot)")
+        if not path:
+            return
+        target = Path(path)
+        if target.suffix == "":
+            target = target.with_suffix(".pylot")
+        self._save_to_path(target)
+
+    def _save_to_path(self, target_path: Path) -> None:
+        if self.library is None:
+            return
+        target_path = target_path.resolve()
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_output = target_path.parent / f".{target_path.name}.tmp"
+            if temp_output.exists():
+                temp_output.unlink()
+            with sqlite3.connect(self.library.path) as source, sqlite3.connect(temp_output) as destination:
+                source.execute("PRAGMA wal_checkpoint(FULL)")
+                source.backup(destination)
+                destination.execute("PRAGMA journal_mode=DELETE")
+                destination.commit()
+            temp_output.replace(target_path)
+        except (sqlite3.Error, OSError) as exc:
+            self._problem("Could not save the library", exc)
+            return
+        self._source_path = target_path
+        self._remember_recent_file(target_path)
+        self._set_dirty(False)
+        self.statusBar().showMessage(f"Saved {target_path}.")
+
+    def _prepare_to_close_current(self) -> bool:
+        if self.library is None or not self._dirty:
+            return True
+        target = str(self._source_path) if self._source_path is not None else "this library"
+        answer = QMessageBox.question(
+            self,
+            "Save changes?",
+            f"{target} has unsaved changes.",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if answer == QMessageBox.StandardButton.Cancel:
+            return False
+        if answer == QMessageBox.StandardButton.Save:
+            before = self._dirty
+            self.save_library()
+            return before and not self._dirty
+        return True
 
     # -- recent files --------------------------------------------------------
 
@@ -398,6 +530,8 @@ class MainWindow(QMainWindow):
         self.panes.setEnabled(on)
         self.tree.setEnabled(on)
         self.close_action.setEnabled(on)
+        self.save_action.setEnabled(on)
+        self.save_as_action.setEnabled(on)
 
     def refresh(self, *, keep: list[str] | None = None) -> None:
         """Re-read everything from the library.
@@ -499,6 +633,7 @@ class MainWindow(QMainWindow):
         except LibraryError as exc:
             self._problem("Could not apply", exc)
             return
+        self._set_dirty(True)
         self.refresh()
 
     def edit_probes(self, values) -> None:
@@ -533,6 +668,7 @@ class MainWindow(QMainWindow):
         if answer != QMessageBox.StandardButton.Apply:
             return
         self.library.set_probe_xy(probe_xy)
+        self._set_dirty(True)
         self.refresh()
         self.statusBar().showMessage(f"Probes applied; {changed} of {len(conditions)} conditions changed.")
 
@@ -549,6 +685,7 @@ class MainWindow(QMainWindow):
         if not condition_id:
             return
         self.library.set_condition_label(condition_id, label)
+        self._set_dirty(True)
         self.refresh(keep=[condition_id])
         self.statusBar().showMessage(f"Renamed {condition_id}.")
 
@@ -560,6 +697,7 @@ class MainWindow(QMainWindow):
         if not result_id:
             return
         self.library.set_result_label(result_id, label)
+        self._set_dirty(True)
         self.refresh(keep=[result_id])
         self.statusBar().showMessage(f"Renamed {result_id}.")
 
@@ -572,6 +710,7 @@ class MainWindow(QMainWindow):
         except (LibraryError, MeshPipelineError, ValueError) as exc:
             self._problem("Could not create the condition", exc)
             return
+        self._set_dirty(True)
         self.refresh(keep=[condition.id])
 
     def create_mesh(self, condition_id: str) -> None:
@@ -586,13 +725,18 @@ class MainWindow(QMainWindow):
         except (LibraryError, MeshPipelineError) as exc:
             self._problem("Could not build the mesh", exc)
             return
+        self._set_dirty(True)
         self.refresh(keep=[mesh.id])
 
     def solve_mesh(self, mesh_id: str) -> None:
         if not mesh_id:
             return
         dialog = SolveDialog(self.library, self.library.mesh(mesh_id), self)
-        dialog.resultStored.connect(lambda result_id: self.refresh(keep=[result_id]))
+        def _stored(result_id: str) -> None:
+            self._set_dirty(True)
+            self.refresh(keep=[result_id])
+
+        dialog.resultStored.connect(_stored)
         dialog.exec()
         self.refresh()
 
@@ -618,7 +762,11 @@ class MainWindow(QMainWindow):
         # Once when the run ends, not per step, so a dialog left open after a
         # batch does not sit in front of a window describing the library as it
         # was last night.
-        dialog.libraryChanged.connect(lambda: self.refresh(keep=[]))
+        def _changed() -> None:
+            self._set_dirty(True)
+            self.refresh(keep=[])
+
+        dialog.libraryChanged.connect(_changed)
         dialog.exec()
         self.refresh(keep=[])
         if dialog.outcome is not None:
@@ -655,6 +803,7 @@ class MainWindow(QMainWindow):
             combined = self.library.combine_results(
                 [r.id for r in results], primary=dialog.primary_id()
             )
+            self._set_dirty(True)
             self.refresh(keep=[combined.id])
             self.statusBar().showMessage(
                 f"Combined {len(results)} results into {combined.id}, covering "
@@ -665,6 +814,7 @@ class MainWindow(QMainWindow):
         plan = dialog.plan()
         for result_id, omegas in plan.items():
             self.library.delete_frequencies(result_id, omegas)
+        self._set_dirty(True)
         self.refresh(keep=[dialog.primary_id()])
         self.statusBar().showMessage(
             f"Merged: {sum(len(v) for v in plan.values())} frequencies removed from "
@@ -689,6 +839,7 @@ class MainWindow(QMainWindow):
             if not self._confirm(f"Remove result {entity_id}?", "Only this result is removed."):
                 return
             self.library.delete_result(entity_id)
+            self._set_dirty(True)
             self.refresh(keep=[])
             return
 
@@ -697,6 +848,7 @@ class MainWindow(QMainWindow):
             return
         deleter = self.library.delete_condition if kind == "condition" else self.library.delete_mesh
         deleter(entity_id, cascade=True)
+        self._set_dirty(True)
         self.refresh(keep=[])
 
     def remove_selected(self) -> None:
@@ -707,6 +859,7 @@ class MainWindow(QMainWindow):
             return
         for result_id in ids:
             self.library.delete_result(result_id)
+        self._set_dirty(True)
         self.refresh(keep=[])
 
     def delete_frequencies(self, result_id: str) -> None:
@@ -727,6 +880,7 @@ class MainWindow(QMainWindow):
         if not omegas:
             return
         self.library.delete_frequencies(result_id, omegas)
+        self._set_dirty(True)
         self.refresh(keep=[result_id])
 
     def _confirm(self, question: str, detail: str) -> bool:
@@ -787,10 +941,14 @@ class MainWindow(QMainWindow):
         self.viewport.start()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._prepare_to_close_current():
+            event.ignore()
+            return
         self.viewport.shutdown()
-        if self.library is not None:
-            self.library.close()
-            self.library = None
+        self._close_current_library()
+        self._discard_working_copy()
+        self._source_path = None
+        self._dirty = False
         super().closeEvent(event)
 
 

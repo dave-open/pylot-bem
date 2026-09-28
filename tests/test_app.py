@@ -1756,6 +1756,35 @@ def test_closing_a_library_releases_it(window, path):
         assert len(reopened.results()) == 4
 
 
+def test_edits_stay_local_until_saved(window, path):
+    window.tree.select_ids(["design"])
+    window.condition_pane.ui.editLabel.setText("Needs save")
+    window.condition_pane.ui.btnApplyLabel.click()
+
+    with Library.open(path) as before_save:
+        assert before_save.condition("design").label == "Design"
+
+    window.save_library()
+    with Library.open(path) as after_save:
+        assert after_save.condition("design").label == "Needs save"
+
+
+def test_discarding_unsaved_changes_keeps_source_file_unchanged(window, path, monkeypatch):
+    window.tree.select_ids(["design"])
+    window.condition_pane.ui.editLabel.setText("Discard me")
+    window.condition_pane.ui.btnApplyLabel.click()
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *a, **k: QMessageBox.StandardButton.Discard,
+    )
+    window.close_library()
+
+    with Library.open(path) as reopened:
+        assert reopened.condition("design").label == "Design"
+
+
 # --------------------------------------------------------------------------
 # What a condition will and will not let you change
 # --------------------------------------------------------------------------
@@ -2693,13 +2722,13 @@ def test_a_recent_file_action_reopens_it(window, path, library_path, tmp_path):
     other = tmp_path / "other.pylot"
     shutil.copy(library_path, other)
     window.open_path(other)
-    assert window.library.path == other
+    assert window.document_path == other
     assert window._recent_files() == [str(other), str(path)]
 
     action = next(action for action in window.recent_menu.actions() if action.text() == str(path))
     action.trigger()
 
-    assert window.library.path == path
+    assert window.document_path == path
     assert window._recent_files() == [str(path), str(other)], "reopening moved it back to the front"
 
 
