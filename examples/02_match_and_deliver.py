@@ -41,7 +41,12 @@ def main() -> None:
     if not LIBRARY.exists():
         raise SystemExit(f"{LIBRARY} not found -- run examples/01_build_a_library.py first")
 
-    with Library.open(LIBRARY) as library:
+    # Nothing below writes, so the library is opened read-only. That is not only
+    # a guard: a normal open switches the file to WAL mode, which rewrites its
+    # header (a new modification time and a new hash, so a sync client uploads
+    # it again) and puts a -wal and -shm beside it while it is open. Reading
+    # through a read-only open touches nothing.
+    with Library.open(LIBRARY, read_only=True) as library:
         print(f"{library.info.vessel_name}: {len(library.conditions())} conditions, {len(library.results())} results")
         print(f"origin        {library.info.origin_description}")
 

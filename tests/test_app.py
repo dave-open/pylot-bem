@@ -17,7 +17,9 @@ in it is the normal state of one being built (ADR-9), and a fixture with only
 clean data would leave the screens that matter untested.
 """
 
+import contextlib
 import shutil
+import sqlite3
 import time
 
 import numpy as np
@@ -109,9 +111,38 @@ def isolated_settings(tmp_path):
     return QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
 
 
+@pytest.fixture(autouse=True)
+def _prompts_never_block(monkeypatch):
+    """Nothing in this module may wait for a human.
+
+    Closing a window with unsaved changes asks whether to save, and nearly every
+    test here closes its window in teardown after having edited a library. So
+    that question is answered "discard" -- these tests are not about saving --
+    and every *other* question the window can ask fails the test that provoked
+    it. Recorded as well as raised: a Qt slot swallows the exception, and a
+    prompt that only printed a traceback would pass.
+
+    Saving, and the questions around it, are tested in ``test_app_workspace.py``.
+    """
+    unexpected = []
+
+    def forbid(name):
+        def prompt(self, *args):
+            unexpected.append(name)
+            raise AssertionError(f"unexpected prompt: {name}")
+
+        return prompt
+
+    monkeypatch.setattr(MainWindow, "_ask_save", lambda self: "discard")
+    for name in ("_ask_conflict", "_ask_locked", "_ask_recover", "_ask_replace", "_ask_revert"):
+        monkeypatch.setattr(MainWindow, name, forbid(name))
+    yield
+    assert not unexpected, f"the window asked {unexpected}, which nothing here expected"
+
+
 @pytest.fixture
-def window(qapp, path, isolated_settings):
-    main = MainWindow(settings=isolated_settings)
+def window(qapp, path, isolated_settings, tmp_path):
+    main = MainWindow(settings=isolated_settings, work_root=tmp_path / "work")
     main.show()
     main.open_path(path)
     yield main
@@ -1089,15 +1120,35 @@ def test_stopping_a_solve_keeps_what_was_solved_without_asking(window, qapp, mon
     dialog.close()
 
 
-def test_terminating_a_solve_asks_and_discarding_leaves_the_library_byte_identical(
-    window, qapp, monkeypatch, path
-):
+def logical_snapshot(library):
+    """What the library holds, read the way another program would: ids and every row.
+
+    Through a connection of its own to the working copy, so it sees what has
+    been committed rather than what the window's connection remembers. Rows are
+    sorted here rather than in SQL, which would need a key for every table.
+    """
+    with contextlib.closing(sqlite3.connect(library.path)) as connection:
+        tables = [
+            name
+            for (name,) in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        rows = {
+            table: sorted(connection.execute(f'SELECT * FROM "{table}"').fetchall(), key=repr) for table in tables
+        }
+    return sorted(result.id for result in library.results()), rows
+
+
+def test_terminating_a_solve_asks_and_discarding_leaves_the_library_unchanged(window, qapp, monkeypatch):
     """Item 5, under the decided rule: kill is the tier that asks.
 
     Someone reaching for the emergency handle usually wants out, so this is
-    where the question belongs -- and Discard means *untouched*, asserted on
-    the **bytes of the file**. A write that was rolled back, or one that left a
-    page dirty, is exactly the failure a result count would miss.
+    where the question belongs -- and Discard means *untouched*. The window
+    edits a private copy, so the file the user opened cannot show it; what can
+    is the copy: no unsaved changes, and not one row of it different. A write
+    that was rolled back, or one that left a page dirty, is exactly the failure
+    a result count would miss.
     """
     asked = []
 
@@ -1106,7 +1157,8 @@ def test_terminating_a_solve_asks_and_discarding_leaves_the_library_byte_identic
         return False
 
     monkeypatch.setattr(SolveDialog, "_keep_partial", decline)
-    before = path.read_bytes()
+    assert not window.workspace.dirty
+    before = logical_snapshot(window.library)
 
     dialog = SolveDialog(window.library, window.library.mesh("ballast-mesh"), window)
     dialog.ui.spinPeriodFrom.setValue(6.0)
@@ -1130,7 +1182,8 @@ def test_terminating_a_solve_asks_and_discarding_leaves_the_library_byte_identic
     assert asked[0].killed and asked[0].solved, "it was asked about a run that had produced something"
     assert not stored, "declining must store nothing"
     assert "Discarded" in dialog.ui.lblProgress.text()
-    assert path.read_bytes() == before, "the library file changed after a discarded solve"
+    assert not window.workspace.dirty, "the discarded solve committed something"
+    assert logical_snapshot(window.library) == before, "the library changed after a discarded solve"
     dialog.close()
 
 
@@ -1746,12 +1799,18 @@ def test_opening_something_that_is_not_a_library_is_reported(qapp, tmp_path, mon
 
 
 def test_closing_a_library_releases_it(window, path):
-    window.close_library()
+    working_copy = window.workspace.work_dir
+
+    assert window.close_library()
 
     assert window.library is None
+    assert window.workspace is None
     assert window.tree.topLevelItemCount() == 0
     assert not window.tabs.isEnabled()
-    # The file is no longer held, so it can be reopened.
+    assert not working_copy.exists(), "the private copy is deleted with the library"
+    # The window worked on a copy, so it never left a journal beside the file...
+    assert sorted(p.name for p in path.parent.iterdir() if p.name.startswith(path.name)) == [path.name]
+    # ... and nothing holds the file, so it can be opened again.
     with Library.open(path) as reopened:
         assert len(reopened.results()) == 4
 
@@ -1768,8 +1827,10 @@ def test_a_conditions_label_can_be_changed(window):
     window.condition_pane.ui.btnApplyLabel.click()
 
     assert window.library.condition("design").label == "Design draft, summer"
-    # And it really reached storage, not just the widget.
-    with Library.open(window.library.path) as reopened:
+    # And it really reached storage, not just the widget. The window edits a
+    # copy, so the file the user opened has it once it is saved.
+    assert window.save_library()
+    with Library.open(window.source_path) as reopened:
         assert reopened.condition("design").label == "Design draft, summer"
 
 
@@ -2648,8 +2709,10 @@ def test_a_missing_recent_file_is_forgotten_when_opening_it_fails(window, path, 
     monkeypatch.setattr(MainWindow, "_problem", lambda self, title, exc: None)
     assert window._recent_files() == [str(path)]
 
-    window.close_library()  # SQLite holds the file open; Windows refuses to delete it otherwise
+    # The library is still open. Nothing holds the file itself -- the window is
+    # working on a private copy -- so Windows lets it be deleted underneath.
     path.unlink()
+    assert window.source_path == path
     window.open_path(path)
 
     assert window._recent_files() == [], "a moved or deleted file cannot be reopened from this menu ever again"
@@ -2693,13 +2756,14 @@ def test_a_recent_file_action_reopens_it(window, path, library_path, tmp_path):
     other = tmp_path / "other.pylot"
     shutil.copy(library_path, other)
     window.open_path(other)
-    assert window.library.path == other
+    assert window.source_path == other
+    assert window.library.path != other, "the window edits a private copy, not the file it was given"
     assert window._recent_files() == [str(other), str(path)]
 
     action = next(action for action in window.recent_menu.actions() if action.text() == str(path))
     action.trigger()
 
-    assert window.library.path == path
+    assert window.source_path == path
     assert window._recent_files() == [str(path), str(other)], "reopening moved it back to the front"
 
 

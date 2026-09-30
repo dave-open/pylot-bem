@@ -166,6 +166,10 @@ class ResultsTab(QWidget):
             )
         _fill(self.table, rows)
 
+    def clear(self) -> None:
+        """Show nothing, for when the library is closed."""
+        self.table.setRowCount(0)
+
 
 class DatabasesTab(QWidget):
     """Assembly keys, and whether each one can produce a database.
@@ -227,6 +231,12 @@ class DatabasesTab(QWidget):
             )
             colours.append(colour)
         _fill(self.table, rows, colours=colours)
+        self._selected()
+
+    def clear(self) -> None:
+        """Show nothing, for when the library is closed."""
+        self._views = []
+        self.table.setRowCount(0)
         self._selected()
 
     def _selected(self) -> None:
@@ -333,6 +343,18 @@ class InspectTab(QWidget):
     def show_results(self, library, result_ids: list[str]) -> None:
         self._library = library
         self._result_ids = list(result_ids)
+        self._fill_directions()
+        self.replot()
+
+    def clear(self) -> None:
+        """Let go of the library and what was selected in it.
+
+        The controls are wired to :meth:`replot`, so a tab still holding a
+        closed library is one changed combo box away from querying it.
+        """
+        self._library = None
+        self._result_ids = []
+        self.heading.setText("Select one or more results in the tree.")
         self._fill_directions()
         self.replot()
 
@@ -517,6 +539,13 @@ class MatchTab(QWidget):
         self._library = library
         self.rank()
 
+    def clear(self) -> None:
+        """Let go of the library. Every trial control re-ranks, so a stale one would query it."""
+        self._library = None
+        self._ranking = None
+        self.table.setRowCount(0)
+        self.probes.setText("")
+
     def rank(self) -> None:
         if self._library is None:
             return
@@ -599,6 +628,10 @@ class ValidationTab(QWidget):
         self._library = library
         self.table.setRowCount(0)
         self.summary.setText("Not run yet.")
+
+    def clear(self) -> None:
+        """Let go of the library. Run validation would otherwise be pointed at a closed one."""
+        self.display(None)
 
     def run(self) -> list:
         """Validate, show the findings, and report what could not be checked.

@@ -25,6 +25,8 @@ contests the same frequency, which is exactly the thing the user has to go and
 resolve.
 """
 
+from pathlib import Path
+
 from PySide6.QtCore import QItemSelectionModel, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QTreeWidget, QTreeWidgetItem
@@ -108,7 +110,7 @@ class LibraryTree(QTreeWidget):
 
     # -- filling -----------------------------------------------------------
 
-    def rebuild(self, library, *, keep: list[str] | None = None) -> None:
+    def rebuild(self, library, *, keep: list[str] | None = None, path=None) -> None:
         """Rebuild from scratch, restoring the selection by id.
 
         Rebuilding wholesale rather than patching in place: every action in the
@@ -117,6 +119,16 @@ class LibraryTree(QTreeWidget):
         database state -- so an incremental update would have to know about all
         of them. The tree is small enough that correctness is worth more than
         the redraw.
+
+        Args:
+            library: The library to show, or ``None`` to empty the tree.
+            keep: Ids to select again afterwards; the current selection if
+                omitted.
+            path: The file to name in the root's tooltip, and in its label when
+                the vessel has no name. The library's own path is a working copy
+                in a folder nobody chose -- and after a Save As one whose name
+                is the *old* file's -- so a window that edits a copy passes the
+                file the user has open.
         """
         keep = keep if keep is not None else self.selected_ids()
         self._library = library
@@ -126,9 +138,10 @@ class LibraryTree(QTreeWidget):
 
         states = self._database_states(library)
 
-        root = QTreeWidgetItem(self, [library.info.vessel_name or library.path.stem, "", "", ""])
+        named = Path(path) if path else library.path
+        root = QTreeWidgetItem(self, [library.info.vessel_name or named.stem, "", "", ""])
         root.setData(0, _KIND_ROLE, ("library", "library"))
-        root.setToolTip(0, str(library.path))
+        root.setToolTip(0, str(named))
 
         results_by_mesh: dict[str, list] = {}
         for result in library.results():

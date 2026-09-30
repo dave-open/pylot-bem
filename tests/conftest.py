@@ -21,6 +21,19 @@ from hull import load_tanker, make_base_shape
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
+@pytest.fixture(autouse=True)
+def _private_work_root(tmp_path_factory, monkeypatch):
+    """Keep every test's working copies out of the developer's real folder.
+
+    ``Workspace`` puts its copies in a per-user folder that survives the
+    process, because that is what crash recovery reads. A test run must
+    neither litter that folder nor find a session a real run left in it.
+    """
+    from pylot_bem.workspace import WORK_DIR_ENV
+
+    monkeypatch.setenv(WORK_DIR_ENV, str(tmp_path_factory.mktemp("work")))
+
+
 @pytest.fixture(scope="session")
 def qapp():
     """One QApplication for the whole session. Qt permits exactly one."""

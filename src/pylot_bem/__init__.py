@@ -22,6 +22,17 @@ here: it pulls in the whole of VTK, and the CLI has no use for that::
 
     from pylot_bem.plotting import show_condition
 
+:class:`Pylot` writes the file in place. :class:`Workspace` is the same library
+opened the way a text editor opens a file -- edits go to a private copy and
+**Save** replaces the original -- which is what the application does, and what a
+script should do to a library in a folder a sync client watches::
+
+    from pylot_bem import Workspace
+
+    with Workspace.open("tanker.pylot") as w:
+        w.library.create_condition(z_origin=-5.0)   # a Pylot, on the copy
+        w.save()                                     # tanker.pylot replaced
+
 See ``docs/api.md`` for the reference and the pylot specification's ``11_api.md`` for why.
 """
 
@@ -36,6 +47,7 @@ from pylot_bem.mesh_pipeline import (
     check_full_mesh,
 )
 from pylot_bem.solver import Progress, SolverError, SolveSettings, solve, solver_provenance
+from pylot_bem.workspace import Workspace
 
 __all__ = [
     "MeshGeometry",
@@ -44,6 +56,7 @@ __all__ = [
     "Pylot",
     "SolveSettings",
     "SolverError",
+    "Workspace",
     "application_point_for",
     "build_mesh",
     "check_full_mesh",

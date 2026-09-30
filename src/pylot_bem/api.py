@@ -31,6 +31,7 @@ right on its own:
 See the pylot specification, ``11_api.md``.
 """
 
+import sqlite3
 from pathlib import Path
 from typing import Self
 
@@ -177,6 +178,40 @@ class Pylot(Library):
             description=description,
             probe_xy=probe_xy,
         )
+
+    # -- closing -----------------------------------------------------------
+
+    def close(self) -> None:
+        """Close the library, leaving the file the way a reader expects to find it.
+
+        A library is opened in WAL mode, and that is recorded in the file's
+        header: a file that was ever opened for writing goes on asking for
+        ``-wal`` and ``-shm`` files beside it every time it is opened, even by
+        a program that only wants to look. Switching back to a rollback
+        journal on the way out makes the file at rest an ordinary single file.
+
+        Best effort. The switch needs this to be the only connection, so it is
+        skipped -- immediately, without waiting -- when another is open, as
+        the batch screen's worker connection is while the window's is closing.
+        Whichever closes last does it, and a file it could not reach is merely
+        left as it was.
+
+        Side effect to know about: every ``open`` / ``close`` pair rewrites the
+        file's header -- WAL on when it is opened, off again here -- so the
+        file's modification time **and its content hash** change even if the
+        caller only read. A sync client uploads it again, and a
+        :class:`~pylot_bem.workspace.Workspace` (or the application) holding
+        unsaved changes to the same file reports it as changed by someone else
+        at its next Save. Code that only reads should open the library with
+        ``read_only=True``, which does not change the file.
+        """
+        if not self.read_only:
+            try:
+                self._connection.execute("PRAGMA busy_timeout = 0")
+                self._connection.execute("PRAGMA journal_mode = DELETE")
+            except sqlite3.Error:
+                pass
+        super().close()
 
     # -- building ----------------------------------------------------------
 

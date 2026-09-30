@@ -15,6 +15,13 @@ storing what a pooled solve returned -- the answer was to put it on the API,
 not to reach past it. Anything the window has to work out for itself, every
 other caller would have to work out too.
 
+The one thing the window does that the API does not is treat a library as a
+document. Opening one makes a private working copy
+(:class:`~pylot_bem.workspace.Workspace`), everything happens to the copy, and
+Save replaces the file -- the way a text editor works, and for the same reason:
+a file that is only written when asked can live in a synced folder. The API and
+the command line write in place, unchanged.
+
 Module map:
 
 ===============  ============================================================
@@ -52,6 +59,10 @@ def run(path: str | None = None) -> int:
 
     window = MainWindow()
     window.show()
+    # Before the path from the command line: work a crashed session left is
+    # what the user was in the middle of, and it is easier to decline than to
+    # find again once something else is open.
+    window.offer_recovery()
     if path:
         window.open_path(path)
     return app.exec()

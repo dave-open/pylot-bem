@@ -76,6 +76,21 @@ class LibraryPane(QWidget):
         self.ui.btnProbeReset.clicked.connect(self._reset_probes)
         self.ui.btnValidate.clicked.connect(self.validateRequested)
         self._library = None
+        # What the form says before any validation has run, kept so a closed
+        # library's findings do not greet the next one.
+        self._idle_health = self.ui.lblHealth.text()
+
+    def clear(self) -> None:
+        """Let go of the library, and of what was said about it.
+
+        Reset Probes reads the library it last displayed, so one that outlives
+        the library is a button press away from a closed database.
+        """
+        self._library = None
+        for edit in (self.ui.editVesselName, self.ui.editDescription, self.ui.editOrigin):
+            edit.clear()
+        self.ui.tableProbes.setRowCount(0)
+        self.ui.lblHealth.setText(self._idle_health)
 
     def display(self, library) -> None:
         self._library = library

@@ -19,7 +19,9 @@ They all use `tests/assets/tanker.stl` — a real 333 × 58 × 28 m hull. Point 
 
 Everything is **deliberately coarse** so you can change a number and run it again. Real settings are `pct=2.0, iterations=20` (the defaults) and a frequency grid that covers the periods you care about. Cost is quadratic in the panel count, so `pct` is the knob that matters.
 
-`output/` is gitignored. The scripts delete and rewrite their own library each run — a library is never overwritten in place.
+`output/` is gitignored. The scripts delete and rewrite their own library each run, because `create_new` refuses to overwrite one.
+
+They use `Pylot` directly, which writes the file **in place** — right for a local `output/` folder. A library that lives in a Nextcloud or OneDrive folder is better edited through [`Workspace`](../docs/api.md#workspace--editing-a-copy), which works on a private copy and replaces the file only when you save.
 
 ## Things worth trying
 
@@ -51,6 +53,6 @@ Each one produces plausible output when you get it wrong, which is why they are 
 
 **`z_origin` is not the draft.** It is the height of the vessel origin above the waterplane, negative for a normally floating vessel. They coincide only when the origin is on the keel. There is no `draft` argument anywhere, on purpose.
 
-**`heel` and `trim` are slopes.** `tan(radians(degrees))`. Degrees appear only in the CLI and the UI. `heel=5` is not five degrees, it is a slope of 5 — and outside the valid domain, so it raises. `heel=0.05` is about 2.9°.
+**`heel` and `trim` are slopes.** `sin(radians(degrees))`. Degrees appear only in the CLI and the UI. `heel=5` is not five degrees, it is a slope of 5 — and outside the valid domain, so it raises. `heel=0.05` is about 2.9°.
 
 **Wave direction is where the wave is going**, not where it comes from. Conversion from Capytaine is `×180/π` with no offset.

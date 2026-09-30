@@ -52,7 +52,7 @@ LIBRARY = OUTPUT / "tanker.pylot"
 
 def main() -> None:
     OUTPUT.mkdir(exist_ok=True)
-    LIBRARY.unlink(missing_ok=True)  # a library is never overwritten in place
+    LIBRARY.unlink(missing_ok=True)  # create_new refuses to overwrite an existing file
 
     # 1. Create -----------------------------------------------------------
     #
@@ -84,7 +84,7 @@ def main() -> None:
 
     # 3. Conditions -------------------------------------------------------
     #
-    # heel and trim are SLOPES here, not degrees -- np.tan(np.radians(deg)).
+    # heel and trim are SLOPES here, not degrees -- np.sin(np.radians(deg)).
     # Degrees appear only in the CLI and the UI. The application point is
     # derived from the submerged geometry; you never supply it.
     print()

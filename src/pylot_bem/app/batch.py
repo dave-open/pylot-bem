@@ -223,31 +223,53 @@ class BatchDialog(QDialog):
     """Describe a batch, see what it would cost, and run it.
 
     Attributes:
-        outcome: What the last run did, or ``None`` if none has finished. Kept
-            because ``exec()`` returns a dialog code and nothing else, and the
-            window puts the summary in its status bar afterwards -- the batch
-            is over by then and the screen it was reported on is gone.
+        outcome: What the last run did, or ``None`` if none has finished --
+            including a run that crashed, and one still going when the screen
+            was closed. Kept because ``exec()`` returns a dialog code and
+            nothing else, and the window puts the summary in its status bar
+            afterwards -- the batch is over by then and the screen it was
+            reported on is gone.
+        runs_started: How many times Start has begun a run. The window compares
+            it with the :attr:`libraryChanged` it heard: a run that was begun
+            and never reported ending was cut short by closing the screen, and
+            reports itself only after the window has stopped listening.
 
     Signals:
         libraryChanged: The batch wrote something. Emitted once, when the run
             ends -- not per step. A tree of seven hundred conditions rebuilt
             after each of fourteen hundred steps would spend the night
-            redrawing rather than solving.
+            redrawing rather than solving. Not emitted when the screen is
+            closed over a running batch: the kill is waited for in
+            :meth:`closeEvent`, but the thread's report is queued and reaches
+            this screen only after ``exec()`` has returned.
     """
 
     libraryChanged = Signal()
 
-    def __init__(self, library, condition_ids=(), parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        library,
+        condition_ids=(),
+        parent: QWidget | None = None,
+        *,
+        source_path: str | Path | None = None,
+    ) -> None:
         """Set up the screen.
 
         Args:
             library: The open :class:`~pylot_bem.api.Pylot`. Read only here --
-                the run gets its own connection, see :class:`BatchThread`.
+                the run gets its own connection, see :class:`BatchThread`, to
+                this library's own path.
             condition_ids: Conditions selected in the tree, offered as the
                 third target. Empty disables that choice rather than hiding it,
                 so the option is discoverable before there is a selection to
                 use it on.
             parent: Qt parent.
+            source_path: The file the user opened, when ``library`` is a
+                working copy of it. Job files are offered beside *that* one --
+                the copy is in a folder the user has never seen -- and it is
+                what the heading names. The run itself still goes to
+                ``library.path``, which is where the work is.
         """
         super().__init__(parent)
         self.setLocale(QLocale.c())
@@ -255,10 +277,12 @@ class BatchDialog(QDialog):
         self.ui.setupUi(self)
 
         self._library = library
+        self._source_path = Path(source_path) if source_path is not None else None
         self._selected = tuple(condition_ids)
         self._thread: BatchThread | None = None
         self._problem = ""
         self.outcome: BatchOutcome | None = None
+        self.runs_started = 0
         # Set once, by the first showEvent -- see _size_to_content.
         self._sized = False
 
@@ -272,7 +296,7 @@ class BatchDialog(QDialog):
 
         self.setWindowTitle("Batch — conditions, meshes and solves")
         self.ui.lblHeading.setText(
-            f"<b>{escape(library.info.vessel_name or library.path.stem)}</b> — "
+            f"<b>{escape(library.info.vessel_name or self._file().stem)}</b> — "
             f"{len(library.conditions())} conditions, {len(library.meshes())} meshes and "
             f"{len(library.results())} results are already in this library. Everything below "
             "is added to it, and nothing in it is changed or removed."
@@ -731,6 +755,10 @@ class BatchDialog(QDialog):
         self.ui.progressSolve.setValue(0)
         self._set_running(True)
 
+        # Cleared so that ``outcome`` is always about the run that last began: a
+        # second run that crashes has none, and must not show the first one's.
+        self.outcome = None
+        self.runs_started += 1
         self._thread = BatchThread(self._library.path, job, self)
         self._thread.progressed.connect(self._progressed)
         self._thread.completed.connect(self._completed)
@@ -938,9 +966,14 @@ class BatchDialog(QDialog):
 
         A job belongs to the library it was written for -- its bands are chosen
         against that hull's panel sizes and its drafts against that hull's
-        depth -- so that is where it should land by default.
+        depth -- so that is where it should land by default. Beside the file
+        the user opened, not the working copy the run is writing to.
         """
-        return str(self._library.path.with_suffix(JOB_SUFFIX))
+        return str(self._file().with_suffix(JOB_SUFFIX))
+
+    def _file(self) -> Path:
+        """The library as the user knows it: the file they opened, else the one in hand."""
+        return self._source_path or Path(self._library.path)
 
     # -- odds and ends -----------------------------------------------------
 
@@ -1071,6 +1104,28 @@ class BatchDialog(QDialog):
                     f"{len(self.directions(full_vessel=full_vessel))}."
                 )
 
+    def _confirm_close(self) -> bool:
+        """Whether the screen may go: nothing is running, or the user agreed to kill it.
+
+        Asks, and on Yes kills the run and waits for it, so that when this
+        returns ``True`` no thread of ours still holds the library.
+        """
+        if self._thread is None or not self._thread.isRunning():
+            return True
+        answer = QMessageBox.question(
+            self,
+            "A batch is running",
+            "Killing the workers now loses the solve in flight. Everything already stored "
+            "stays, and running the same job again continues from there. Close anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        self._thread.kill()
+        self._thread.wait(30_000)
+        return True
+
     def closeEvent(self, event) -> None:
         """Refuse to close over a running batch, or kill it on request.
 
@@ -1080,21 +1135,21 @@ class BatchDialog(QDialog):
         worker pool *and* leave the file being written to by a thread nothing
         has a handle on.
         """
-        if self._thread is not None and self._thread.isRunning():
-            answer = QMessageBox.question(
-                self,
-                "A batch is running",
-                "Killing the workers now loses the solve in flight. Everything already stored "
-                "stays, and running the same job again continues from there. Close anyway?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                event.ignore()
-                return
-            self._thread.kill()
-            self._thread.wait(30_000)
-        event.accept()
+        if self._confirm_close():
+            event.accept()
+        else:
+            event.ignore()
+
+    def done(self, result: int) -> None:
+        """Every way a dialog ends, so that none of them skips the guard above.
+
+        Escape reaches a dialog through ``reject()``, which hides it without
+        ever sending a close event -- so the guard in :meth:`closeEvent` alone
+        let Escape close this screen over a running batch and leave the worker
+        going with nothing waiting for it.
+        """
+        if self._confirm_close():
+            super().done(result)
 
 
 # What each kind of event looks like in the log. A night's run is read the

@@ -55,6 +55,12 @@ print(d.validate() or "clean")
 d.close()
 ```
 
+`Pylot` writes the file in place. The application does not: it works on a copy,
+and so can `pylot_bem.Workspace` from a script — see
+[`docs/api.md`](docs/api.md#workspace--editing-a-copy). Opening and closing a
+`Pylot` rewrites the file's header even if you only read, so a script that only
+reads should use `Library.open(path, read_only=True)`, which touches nothing.
+
 Reading one back is [`pylot-db`](https://github.com/dave-open/pylot-db), which
 this package depends on and which needs no solver.
 
@@ -71,6 +77,15 @@ diffraction space, property panes, and tabs for Results, Databases, Inspect,
 Match and Validation. [`docs/manual.md`](docs/manual.md) walks through it screen
 by screen and assumes you already know Capytaine.
 
+It works like a text editor. **Open** makes a private working copy of the library
+on your local disk, everything you do happens to the copy, and **Save** replaces
+your file in one atomic step — so a library the application has saved, in a
+Nextcloud or OneDrive folder, has no `-wal` or `-shm` files beside it, and the
+library file a sync client sees is always the old version or the whole new one.
+Closing or opening with unsaved changes asks first, and a crash leaves the
+working copy to recover from at the next start. See
+[Saving, and where your work lives](docs/manual.md#saving-and-where-your-work-lives).
+
 ### Filling a library overnight
 
 Right-click the library → `Batch…`. A grid of drafts, heels and trims, and one
@@ -86,7 +101,9 @@ z_origin  -4.7 to -0.1 step 0.1     heel  -1, 0, 1     trim  -2, -1, 0, 1, 2
 705 conditions, 1410 meshes, 1410 solves — counted on screen before Start. A step
 that fails is logged and the run carries on, and starting the same job again
 resumes rather than duplicates, so a night that ended early needs no arithmetic
-to continue.
+to continue. When a run ends the library is saved for you — `File → Save when a
+batch finishes`, on by default, with the same check that the file has not been
+changed by someone else.
 
 `Save job…` keeps the whole thing as a 29-line text file beside the library, so
 it can be edited, kept and run again. `pylot_bem.batch` is the same feature
